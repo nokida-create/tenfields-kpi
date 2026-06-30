@@ -184,8 +184,8 @@ tr:hover td{background:#f8f9ff}
 
   <!-- 申込金額 KPIカード -->
   <div class="krow ha-krow" id="haCards" style="display:none;margin-bottom:18px">
-    <div class="kcard" style="border-left:4px solid #f5a623"><div class="klabel">申込金額 合計（累計）</div><div class="kval" id="ha-total" style="color:#f5a623">—</div><div class="kvsub" id="ha-total-sub">FCランキングAPIから取得中</div></div>
-    <div class="kcard" style="border-left:4px solid #4f6ef7"><div class="klabel">申込金額 月平均（チーム）</div><div class="kval" id="ha-avg" style="color:#4f6ef7">—</div><div class="kvsub" id="ha-avg-sub">在籍月数で補正</div></div>
+    <div class="kcard" style="border-left:4px solid #f5a623"><div class="klabel">純申込金額 合計（申込-解約）</div><div class="kval" id="ha-total" style="color:#f5a623">—</div><div class="kvsub" id="ha-total-sub">FCランキングAPIから取得中</div></div>
+    <div class="kcard" style="border-left:4px solid #4f6ef7"><div class="klabel">純申込金額 月平均（チーム）</div><div class="kval" id="ha-avg" style="color:#4f6ef7">—</div><div class="kvsub" id="ha-avg-sub">在籍月数で補正</div></div>
     <div class="kcard" style="border-left:4px solid #0db980"><div class="klabel">本契約金額 合計（累計）</div><div class="kval" id="ma-total" style="color:#0db980">—</div><div class="kvsub" id="ma-total-sub">—</div></div>
   </div>
 
@@ -276,7 +276,7 @@ tr:hover td{background:#f8f9ff}
       <div class="md-krow">
         <div class="md-kcard"><div class="klabel">電話件数（今月）</div><div class="kval" id="dd-tel" style="color:var(--purple)">—</div><div class="kvsub" id="dd-tel-chg">—</div></div>
         <div class="md-kcard"><div class="klabel">総商談数（今月）</div><div class="kval" id="dd-mtg" style="color:var(--green)">—</div><div class="kvsub" id="dd-mtg-chg">—</div></div>
-        <div class="md-kcard" id="dd-ha-card" style="border-left:4px solid #f5a623;display:none"><div class="klabel">申込金額（累計）</div><div class="kval" id="dd-ha" style="color:#f5a623">—</div><div class="kvsub" id="dd-ha-sub">—</div></div>
+        <div class="md-kcard" id="dd-ha-card" style="border-left:4px solid #f5a623;display:none"><div class="klabel">純申込金額（累計）</div><div class="kval" id="dd-ha" style="color:#f5a623">—</div><div class="kvsub" id="dd-ha-sub">—</div></div>
       </div>
       <div class="dd-conv-row">
         <div class="dd-conv-card">
@@ -404,7 +404,7 @@ async function loadFCData() {
     FC_HA = {};
     // スプレッドシートの値は万円単位なので×10000して円に変換
     (j.members||[]).forEach(m=>{
-      FC_HA[m.name] = {...m, ha:m.ha*10000, ma:m.ma*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000};
+      FC_HA[m.name] = {...m, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000};
     });
     renderHASection();
   } catch(e) { console.warn('FC API取得失敗:', e); }
@@ -413,15 +413,15 @@ async function loadFCData() {
 function renderHASection() {
   if(!Object.keys(FC_HA).length) return;
 
-  // KPIカード（ma=申込金額、ha=本契約金額）
+  // KPIカード（net=純申込金額、ha=本契約金額）
   const members = Object.values(FC_HA);
-  const totalMa  = members.reduce((s,m)=>s+m.ma,0);
+  const totalNet = members.reduce((s,m)=>s+m.net,0);
   const totalHa  = members.reduce((s,m)=>s+m.ha,0);
-  const avgMa    = members.reduce((s,m)=>s+Math.round(m.ma/m.months),0); // 申込金額月平均の合計
+  const avgNet   = members.reduce((s,m)=>s+m.avgNet,0); // 純申込金額月平均の合計
   const fmt = v => v>=100000000 ? (v/100000000).toFixed(1)+'億' : v>=10000 ? Math.round(v/10000).toLocaleString()+'万' : v.toLocaleString()+'円';
-  document.getElementById('ha-total').textContent = fmt(totalMa);
+  document.getElementById('ha-total').textContent = fmt(totalNet);
   document.getElementById('ha-total-sub').textContent = `${members.length}名合計`;
-  document.getElementById('ha-avg').textContent = fmt(Math.round(avgMa));
+  document.getElementById('ha-avg').textContent = fmt(Math.round(avgNet));
   document.getElementById('ha-avg-sub').textContent = '各メンバーの月平均の合計';
   document.getElementById('ma-total').textContent = fmt(totalHa);
   document.getElementById('ma-total-sub').textContent = `本契約累計`;
@@ -432,10 +432,10 @@ function renderHASection() {
   const ms = D.months;
   const scatterData = [];
   Object.entries(FC_HA).filter(([n])=>isFC(n)).forEach(([name,hd])=>{
-    const avgMaM = hd.months>0 ? Math.round(hd.ma/hd.months) : 0;
+    const avgNetM = hd.avgNet>0 ? hd.avgNet : 0;
     const mtgVals = ms.map(m=>m.members[name]?.mtg).filter(v=>v!=null);
     const avgMtg = mtgVals.length ? Math.round(mtgVals.reduce((a,b)=>a+b,0)/mtgVals.length*10)/10 : null;
-    if(avgMtg!=null && avgMaM>0) scatterData.push({x:avgMtg, y:avgMaM, name});
+    if(avgMtg!=null && avgNetM>0) scatterData.push({x:avgMtg, y:avgNetM, name});
   });
   if(charts.corr) charts.corr.destroy();
   charts.corr = new Chart(document.getElementById('corrChart'),{
@@ -477,9 +477,8 @@ function updateDetailHACard(name) {
   if(!hd) return;
   const card = document.getElementById('dd-ha-card');
   const fmt = v => v>=100000000?(v/100000000).toFixed(1)+'億円':v>=10000?Math.round(v/10000).toLocaleString()+'万円':v.toLocaleString()+'円';
-  const avgMa = hd.months>0 ? Math.round(hd.ma/hd.months) : 0;
-  document.getElementById('dd-ha').textContent = fmt(hd.ma);
-  document.getElementById('dd-ha-sub').textContent = `月平均 ${fmt(avgMa)} ／ 在籍${hd.months}ヶ月`;
+  document.getElementById('dd-ha').textContent = fmt(hd.net);
+  document.getElementById('dd-ha-sub').textContent = `月平均 ${fmt(hd.avgNet)} ／ 在籍${hd.months}ヶ月`;
   card.style.display = '';
 }
 
@@ -489,16 +488,16 @@ function renderHARanking() {
   document.getElementById('rankTableWrap').style.display = 'none';
   document.getElementById('haRankSection').style.display = '';
 
-  // ma=申込金額、ha=本契約金額
+  // net=純申込金額（申込-解約）、ha=本契約金額
   const entries = Object.entries(FC_HA).filter(([n])=>isFC(n));
-  const sorted    = [...entries].sort((a,b)=>b[1].ma-a[1].ma);
-  const sortedAvg = [...entries].sort((a,b)=>(b[1].ma/b[1].months)-(a[1].ma/a[1].months));
+  const sorted    = [...entries].sort((a,b)=>b[1].net-a[1].net);
+  const sortedAvg = [...entries].sort((a,b)=>b[1].avgNet-a[1].avgNet);
   const fmt = v=>v>=100000000?(v/100000000).toFixed(1)+'億':v>=10000?Math.round(v/10000).toLocaleString()+'万':v.toLocaleString();
   const colFc = 'rgba(245,166,35,.7)';
 
   if(charts.haRank) charts.haRank.destroy();
   charts.haRank = new Chart(document.getElementById('haRankChart'),{
-    type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:'申込累計',data:sorted.map(([,v])=>v.ma),backgroundColor:colFc,borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
+    type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:'純申込累計',data:sorted.map(([,v])=>v.net),backgroundColor:colFc,borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
       plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円`}}},
       scales:{x:{ticks:{callback:v=>v>=100000000?(v/100000000).toFixed(1)+'億':v>=10000?Math.round(v/10000)+'万':v}},y:{grid:{display:false}}}}
@@ -506,7 +505,7 @@ function renderHARanking() {
 
   if(charts.haAvg) charts.haAvg.destroy();
   charts.haAvg = new Chart(document.getElementById('haAvgChart'),{
-    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均申込',data:sortedAvg.map(([,v])=>Math.round(v.ma/v.months)),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
+    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均純申込',data:sortedAvg.map(([,v])=>v.avgNet),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
       plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円/月`}}},
       scales:{x:{ticks:{callback:v=>v>=100000000?(v/100000000).toFixed(1)+'億':v>=10000?Math.round(v/10000)+'万':v}},y:{grid:{display:false}}}}
