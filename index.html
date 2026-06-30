@@ -403,8 +403,10 @@ async function loadFCData() {
     const j = await r.json();
     FC_HA = {};
     // スプレッドシートの値は万円単位なので×10000して円に変換
+    const NAME_MAP = {'齋藤':'齊藤'};
     (j.members||[]).forEach(m=>{
-      FC_HA[m.name] = {...m, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000};
+      const name = NAME_MAP[m.name] || m.name;
+      FC_HA[name] = {...m, name, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000};
     });
     renderHASection();
   } catch(e) { console.warn('FC API取得失敗:', e); }
