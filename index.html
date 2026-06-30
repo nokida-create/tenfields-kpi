@@ -410,17 +410,17 @@ async function loadFCData() {
 function renderHASection() {
   if(!Object.keys(FC_HA).length) return;
 
-  // KPIカード
+  // KPIカード（ma=申込金額、ha=本契約金額）
   const members = Object.values(FC_HA);
-  const totalHa = members.reduce((s,m)=>s+m.ha,0);
-  const totalMa = members.reduce((s,m)=>s+m.ma,0);
-  const avgHa   = members.reduce((s,m)=>s+m.avgHa,0);
+  const totalMa  = members.reduce((s,m)=>s+m.ma,0);
+  const totalHa  = members.reduce((s,m)=>s+m.ha,0);
+  const avgMa    = members.reduce((s,m)=>s+Math.round(m.ma/m.months),0); // 申込金額月平均の合計
   const fmt = v => v>=10000 ? (v/10000).toFixed(1)+'万' : v.toLocaleString()+'円';
-  document.getElementById('ha-total').textContent = fmt(totalHa);
+  document.getElementById('ha-total').textContent = fmt(totalMa);
   document.getElementById('ha-total-sub').textContent = `${members.length}名合計`;
-  document.getElementById('ha-avg').textContent = fmt(Math.round(avgHa));
+  document.getElementById('ha-avg').textContent = fmt(Math.round(avgMa));
   document.getElementById('ha-avg-sub').textContent = '各メンバーの月平均の合計';
-  document.getElementById('ma-total').textContent = fmt(totalMa);
+  document.getElementById('ma-total').textContent = fmt(totalHa);
   document.getElementById('ma-total-sub').textContent = `本契約累計`;
   document.getElementById('haCards').style.display = '';
 
@@ -429,9 +429,10 @@ function renderHASection() {
   const ms = D.months;
   const scatterData = [];
   Object.entries(FC_HA).filter(([n])=>isFC(n)).forEach(([name,hd])=>{
+    const avgMaM = hd.months>0 ? Math.round(hd.ma/hd.months) : 0;
     const mtgVals = ms.map(m=>m.members[name]?.mtg).filter(v=>v!=null);
     const avgMtg = mtgVals.length ? Math.round(mtgVals.reduce((a,b)=>a+b,0)/mtgVals.length*10)/10 : null;
-    if(avgMtg!=null && hd.avgHa>0) scatterData.push({x:avgMtg, y:hd.avgHa, name});
+    if(avgMtg!=null && avgMaM>0) scatterData.push({x:avgMtg, y:avgMaM, name});
   });
   if(charts.corr) charts.corr.destroy();
   charts.corr = new Chart(document.getElementById('corrChart'),{
@@ -473,8 +474,9 @@ function updateDetailHACard(name) {
   if(!hd) return;
   const card = document.getElementById('dd-ha-card');
   const fmt = v => v>=10000?(v/10000).toFixed(1)+'万円':v.toLocaleString()+'円';
-  document.getElementById('dd-ha').textContent = fmt(hd.ha);
-  document.getElementById('dd-ha-sub').textContent = `月平均 ${fmt(hd.avgHa)} ／ 在籍${hd.months}ヶ月`;
+  const avgMa = hd.months>0 ? Math.round(hd.ma/hd.months) : 0;
+  document.getElementById('dd-ha').textContent = fmt(hd.ma);
+  document.getElementById('dd-ha-sub').textContent = `月平均 ${fmt(avgMa)} ／ 在籍${hd.months}ヶ月`;
   card.style.display = '';
 }
 
@@ -484,14 +486,16 @@ function renderHARanking() {
   document.getElementById('rankTableWrap').style.display = 'none';
   document.getElementById('haRankSection').style.display = '';
 
-  const sorted = Object.entries(FC_HA).filter(([n])=>isFC(n)).sort((a,b)=>b[1].ha-a[1].ha);
-  const sortedAvg = [...sorted].sort((a,b)=>b[1].avgHa-a[1].avgHa);
+  // ma=申込金額、ha=本契約金額
+  const entries = Object.entries(FC_HA).filter(([n])=>isFC(n));
+  const sorted    = [...entries].sort((a,b)=>b[1].ma-a[1].ma);
+  const sortedAvg = [...entries].sort((a,b)=>(b[1].ma/b[1].months)-(a[1].ma/a[1].months));
   const fmt = v=>v>=10000?(v/10000).toFixed(1)+'万':v.toLocaleString();
   const colFc = 'rgba(245,166,35,.7)';
 
   if(charts.haRank) charts.haRank.destroy();
   charts.haRank = new Chart(document.getElementById('haRankChart'),{
-    type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:'申込累計',data:sorted.map(([,v])=>v.ha),backgroundColor:colFc,borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
+    type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:'申込累計',data:sorted.map(([,v])=>v.ma),backgroundColor:colFc,borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
       plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円`}}},
       scales:{x:{ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+'万':v}},y:{grid:{display:false}}}}
@@ -499,7 +503,7 @@ function renderHARanking() {
 
   if(charts.haAvg) charts.haAvg.destroy();
   charts.haAvg = new Chart(document.getElementById('haAvgChart'),{
-    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均申込',data:sortedAvg.map(([,v])=>v.avgHa),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
+    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均申込',data:sortedAvg.map(([,v])=>Math.round(v.ma/v.months)),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
       plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円/月`}}},
       scales:{x:{ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+'万':v}},y:{grid:{display:false}}}}
