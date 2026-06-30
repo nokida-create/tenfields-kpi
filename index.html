@@ -130,6 +130,21 @@ tr:hover td{background:#f8f9ff}
 .ai-actions{list-style:none;display:flex;flex-direction:column;gap:10px}
 .ai-actions li{display:flex;gap:10px;font-size:.88rem;line-height:1.6;color:var(--text)}
 .ai-actions li::before{content:"→";color:var(--accent);font-weight:700;flex-shrink:0;margin-top:2px}
+/* 売上ランキングタブ */
+.sr-rank-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.sr-rank-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.sr-r1{background:#f59e0b;color:#000}.sr-r2{background:#94a3b8;color:#000}.sr-r3{background:#b45309;color:#fff}.sr-rn{background:#e2e6ef;color:#6b7594}
+.sr-rank-name{width:52px;font-size:13px;font-weight:600;flex-shrink:0}
+.sr-bar-outer{flex:1;display:flex;align-items:center;gap:8px}
+.sr-bar-bg{flex:1;background:#f1f5f9;border-radius:5px;height:20px;overflow:hidden}
+.sr-bar-fill{height:20px;border-radius:5px}
+.sr-bar-blue{background:linear-gradient(90deg,#1d4ed8,#3b82f6)}
+.sr-bar-green{background:linear-gradient(90deg,#065f46,#10b981)}
+.sr-bar-label{font-size:11px;font-weight:700;color:#1a1f36;white-space:nowrap;min-width:72px}
+.pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.pill-good{background:#dcfce7;color:#166534}.pill-ok{background:#dbeafe;color:#1e40af}
+.pill-warn{background:#fef9c3;color:#854d0e}.pill-bad{background:#fee2e2;color:#991b1b}
+.pill-zero{background:#f1f5f9;color:#94a3b8;border:1px solid #e2e6ef}
 </style>
 </head>
 <body>
@@ -147,6 +162,7 @@ tr:hover td{background:#f8f9ff}
   <button class="vtab" onclick="switchView('members',this)">個人別</button>
   <button class="vtab" onclick="switchView('ranking',this)">ランキング</button>
   <button class="vtab" onclick="switchView('detail',this)">担当者別</button>
+  <button class="vtab" onclick="switchView('sales',this)">💰 売上</button>
 </div>
 
 <div class="wrap">
@@ -325,6 +341,60 @@ tr:hover td{background:#f8f9ff}
     <div id="detail-ai-section" style="display:none">
       <div id="aiAnalysisContent"></div>
     </div>
+  </div>
+</div>
+
+<!-- ======== SALES RANKING ======== -->
+<div id="view-sales" style="display:none">
+  <div id="sales-loading" style="text-align:center;padding:40px;color:var(--muted)">データ読み込み中...</div>
+  <div id="sales-body" style="display:none">
+    <!-- 合計カード -->
+    <div class="cgrid" style="margin-bottom:20px">
+      <div class="ccard" style="border-left:4px solid #3b82f6">
+        <div class="klabel">本契約金額 累計（全員合計）</div>
+        <div class="kval" id="sr-total-ha" style="color:#3b82f6">—</div>
+        <div class="kvsub" id="sr-total-ha-sub">万円</div>
+      </div>
+      <div class="ccard" style="border-left:4px solid #10b981">
+        <div class="klabel">純申込金額 累計（全員合計）</div>
+        <div class="kval" id="sr-total-net" style="color:#10b981">—</div>
+        <div class="kvsub" id="sr-total-sub">申込 — 万 - 解約 — 万</div>
+      </div>
+    </div>
+    <!-- 棒グラフ2列 -->
+    <div class="cgrid" style="margin-bottom:20px">
+      <div class="ccard">
+        <div class="ctitle" style="margin-bottom:16px">💰 本契約金額 ランキング（万円）</div>
+        <div id="sr-chart-ha"></div>
+      </div>
+      <div class="ccard">
+        <div class="ctitle" style="margin-bottom:16px">📋 純申込金額 ランキング（万円）<span style="font-size:11px;color:var(--muted);margin-left:6px">申込－解約</span></div>
+        <div id="sr-chart-net"></div>
+      </div>
+    </div>
+    <!-- 比較テーブル -->
+    <div class="twrap">
+      <div class="ctitle" style="margin-bottom:13px">📊 比較表</div>
+      <table>
+        <thead><tr>
+          <th style="text-align:left">担当者</th>
+          <th>在籍</th>
+          <th>申込解約率<br><span style="font-weight:400;font-size:10px">解約÷申込</span></th>
+          <th>純申込金額（万）<br><span style="font-weight:400;font-size:10px">申込－解約</span></th>
+          <th>純申込 月平均（万）</th>
+          <th>本契約金額（万）</th>
+        </tr></thead>
+        <tbody id="sr-tbody"></tbody>
+        <tfoot><tr style="font-weight:700;background:var(--bg);font-size:12px">
+          <td>合　計</td><td></td>
+          <td id="sr-tfoot-rate">—</td>
+          <td id="sr-tfoot-net">—</td>
+          <td>—</td>
+          <td id="sr-tfoot-ha">—</td>
+        </tr></tfoot>
+      </table>
+    </div>
+    <div style="text-align:center;margin-top:16px;font-size:11px;color:var(--muted)" id="sr-updated"></div>
   </div>
 </div>
 
@@ -1113,11 +1183,85 @@ function renderDetailContent() {
 
 // ---- VIEW SWITCH ----
 function switchView(v,btn){
-  ['overview','members','ranking','detail'].forEach(x=>document.getElementById('view-'+x).style.display=x===v?'':'none');
+  ['overview','members','ranking','detail','sales'].forEach(x=>document.getElementById('view-'+x).style.display=x===v?'':'none');
   if(v==='detail'&&D){ renderDetailMemberSel(); if(detailMember) renderDetailContent(); }
   if(v==='ranking'){ setTimeout(()=>{if(charts.rank)charts.rank.resize();if(charts.cum)charts.cum.resize();},50); }
+  if(v==='sales'){ renderSalesRanking(); }
   document.querySelectorAll('.vtab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+}
+
+function renderSalesRanking(){
+  if(!Object.keys(FC_HA).length) return;
+  document.getElementById('sales-loading').style.display='none';
+  document.getElementById('sales-body').style.display='';
+
+  const fmtMan=v=>Math.round(v/10000).toLocaleString();
+  const allEntries=Object.entries(FC_HA); // 全メンバー（FC_HA_TOTALは全員合計）
+
+  // 合計カード
+  document.getElementById('sr-total-ha').textContent=fmtMan(FC_HA_TOTAL.ha)+'万円';
+  document.getElementById('sr-total-ha-sub').textContent='全員累計';
+  document.getElementById('sr-total-net').textContent=fmtMan(FC_HA_TOTAL.net)+'万円';
+  const totalMa=allEntries.reduce((s,[,m])=>s+m.ma,0);
+  const totalCancel=allEntries.reduce((s,[,m])=>s+m.cancel,0);
+  document.getElementById('sr-total-sub').textContent=`申込 ${fmtMan(totalMa)}万 － 解約 ${fmtMan(totalCancel)}万`;
+
+  // 棒グラフ（本契約）
+  function buildChart(id,items,key,cls){
+    const el=document.getElementById(id); el.innerHTML='';
+    const max=Math.max(...items.map(([,d])=>d[key]||0),1);
+    const rnCls=i=>['sr-r1','sr-r2','sr-r3'][i]||'sr-rn';
+    items.forEach(([name,d],i)=>{
+      const val=Math.round((d[key]||0)/10000);
+      const w=Math.max(Math.round((d[key]||0)/max*100),(d[key]||0)>0?2:0);
+      el.innerHTML+=`<div class="sr-rank-row">
+        <div class="sr-rank-num ${rnCls(i)}">${i+1}</div>
+        <div class="sr-rank-name">${name}</div>
+        <div class="sr-bar-outer">
+          <div class="sr-bar-bg"><div class="sr-bar-fill ${cls}" style="width:${w}%"></div></div>
+          <span class="sr-bar-label">${val>0?val.toLocaleString()+'万':'—'}</span>
+        </div>
+      </div>`;
+    });
+  }
+  const byHa=[...allEntries].sort((a,b)=>b[1].ha-a[1].ha);
+  const byNet=[...allEntries].sort((a,b)=>b[1].net-a[1].net);
+  buildChart('sr-chart-ha',byHa,'ha','sr-bar-blue');
+  buildChart('sr-chart-net',byNet,'net','sr-bar-green');
+
+  // 解約率pill
+  function cancelPill(r){
+    if(r===null||r===undefined) return `<span class="pill pill-zero">—</span>`;
+    const cls=r===0?'pill-good':r<10?'pill-ok':r<25?'pill-warn':'pill-bad';
+    return `<span class="pill ${cls}">${r}%</span>`;
+  }
+
+  // 比較テーブル（本契約順）
+  const medals=['🥇','🥈','🥉'];
+  const tb=document.getElementById('sr-tbody'); tb.innerHTML='';
+  byHa.forEach(([name,d],i)=>{
+    const netMan=Math.round(d.net/10000);
+    const haMan=Math.round(d.ha/10000);
+    const avgNetMan=Math.round(d.avgNet/10000);
+    tb.innerHTML+=`<tr>
+      <td><strong>${medals[i]??`${i+1}位`} ${name}</strong></td>
+      <td style="text-align:center">${d.months}ヶ月</td>
+      <td style="text-align:center">${cancelPill(d.cancelRate)}</td>
+      <td style="text-align:center">${netMan>0?netMan.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td style="text-align:center">${avgNetMan>0?avgNetMan.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td style="text-align:center"><strong>${haMan>0?haMan.toLocaleString():'<span class="dim">—</span>'}</strong></td>
+    </tr>`;
+  });
+
+  // フッター合計
+  const sumHa=allEntries.reduce((s,[,d])=>s+d.ha,0);
+  const sumNet=allEntries.reduce((s,[,d])=>s+d.net,0);
+  const avgRate=totalMa>0?Math.round(totalCancel/totalMa*1000)/10:null;
+  document.getElementById('sr-tfoot-rate').innerHTML=cancelPill(avgRate);
+  document.getElementById('sr-tfoot-net').textContent=Math.round(sumNet/10000).toLocaleString()+'万';
+  document.getElementById('sr-tfoot-ha').textContent=Math.round(sumHa/10000).toLocaleString()+'万';
+  document.getElementById('sr-updated').textContent='※ スプレッドシートから自動取得（'+new Date().toLocaleString('ja-JP').slice(0,16)+'現在）';
 }
 
 // ---- TREND TAB ----
