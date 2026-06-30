@@ -1184,6 +1184,7 @@ function renderDetailContent() {
 // ---- VIEW SWITCH ----
 function switchView(v,btn){
   ['overview','members','ranking','detail','sales'].forEach(x=>document.getElementById('view-'+x).style.display=x===v?'':'none');
+  if(v==='members'&&D){ renderMemberCards(); renderMemberTable(); }
   if(v==='detail'&&D){ renderDetailMemberSel(); if(detailMember) renderDetailContent(); }
   if(v==='ranking'){ setTimeout(()=>{if(charts.rank)charts.rank.resize();if(charts.cum)charts.cum.resize();},50); }
   if(v==='sales'){ renderSalesRanking(); }
