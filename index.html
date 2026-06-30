@@ -927,7 +927,6 @@ function renderDetailContent() {
     data:{labels,datasets:[
       {label:'電話',data:telArr,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.1)',tension:.3,pointRadius:5,borderWidth:2,yAxisID:'y',datalabels:{display:true,align:'top',anchor:'end',color:'#a78bfa',font:{size:10,weight:'bold'},formatter:v=>v!=null?v.toLocaleString():null}},
       {label:'商談',data:mtgArr,borderColor:'#00c9a7',backgroundColor:'rgba(0,201,167,.08)',tension:.3,pointRadius:5,borderWidth:2,yAxisID:'y2',datalabels:{display:true,align:'bottom',anchor:'start',color:'#00c9a7',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
-      {label:'アクション',data:actArr,borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,.08)',tension:.3,pointRadius:5,borderWidth:2,borderDash:[4,3],yAxisID:'y',datalabels:{display:false}},
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:'#6b7594',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{}},
