@@ -934,17 +934,19 @@ function renderDetailContent() {
   // Trend chart
   if(charts.detailTrend) charts.detailTrend.destroy();
   charts.detailTrend = new Chart(document.getElementById('detailTrendChart'),{
-    type:'line',
+    type:'bar',
     data:{labels,datasets:[
-      {label:'電話',data:telArr,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.1)',tension:.3,pointRadius:5,borderWidth:2,yAxisID:'y',datalabels:{display:true,align:'top',anchor:'end',color:'#a78bfa',font:{size:10,weight:'bold'},formatter:v=>v!=null?v.toLocaleString():null}},
-      {label:'商談',data:mtgArr,borderColor:'#00c9a7',backgroundColor:'rgba(0,201,167,.08)',tension:.3,pointRadius:5,borderWidth:2,yAxisID:'y2',datalabels:{display:true,align:'bottom',anchor:'start',color:'#00c9a7',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
+      {type:'bar', label:'電話',data:telArr,backgroundColor:'rgba(167,139,250,.5)',borderColor:'#a78bfa',borderWidth:0,borderRadius:4,yAxisID:'y',order:2,
+        datalabels:{display:true,anchor:'end',align:'top',color:'#7c5cbf',font:{size:10,weight:'bold'},formatter:v=>v!=null?v.toLocaleString():null}},
+      {type:'line',label:'商談',data:mtgArr,borderColor:'#00c9a7',backgroundColor:'rgba(0,201,167,.08)',tension:.4,pointRadius:5,pointBackgroundColor:'#00c9a7',borderWidth:2,fill:false,yAxisID:'y2',order:1,
+        datalabels:{display:true,anchor:'end',align:'top',color:'#00c9a7',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
     ]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:'#6b7594',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{}},
       scales:{
         x:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594',maxRotation:45}},
-        y:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594'},position:'left'},
-        y2:{grid:{display:false},ticks:{color:'#0db980'},position:'right'},
+        y:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594'},position:'left',title:{display:true,text:'電話件数',color:'#a78bfa',font:{size:11}}},
+        y2:{grid:{display:false},ticks:{color:'#00c9a7'},position:'right',title:{display:true,text:'商談件数',color:'#00c9a7',font:{size:11}}},
       }
     }
   });
