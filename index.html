@@ -426,8 +426,8 @@ function renderHASection() {
   const totalHa  = members.reduce((s,m)=>s+m.ha,0);
   const avgNet   = members.reduce((s,m)=>s+m.avgNet,0); // 純申込金額月平均の合計
   const fmt = v => v>=100000000 ? (v/100000000).toFixed(1)+'億' : v>=10000 ? Math.round(v/10000).toLocaleString()+'万' : v.toLocaleString()+'円';
-  document.getElementById('ha-total').textContent = fmt(totalNet);
-  document.getElementById('ha-total-sub').textContent = `${members.length}名合計`;
+  document.getElementById('ha-total').textContent = fmt(FC_HA_TOTAL.net);
+  document.getElementById('ha-total-sub').textContent = `全員合計`;
   document.getElementById('ha-avg').textContent = fmt(Math.round(avgNet));
   document.getElementById('ha-avg-sub').textContent = '各メンバーの月平均の合計';
   document.getElementById('ma-total').textContent = fmt(FC_HA_TOTAL.ha);
