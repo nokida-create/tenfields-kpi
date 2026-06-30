@@ -322,6 +322,7 @@ tr:hover td{background:#f8f9ff}
 const GAS_URL = '';  // 例: 'https://script.google.com/macros/s/XXXX/exec'
 const FC_HA_URL = 'https://script.google.com/macros/s/AKfycbwGKb9CmHAJtfnRUUz0eTAZ1F20gq0T-w-io5wYYiwHZ99FwuClkdkDikpL9-17wvIGdg/exec';
 let FC_HA = {}; // name -> {ha, avgHa, ma, avgNet, months, cancelRate}
+let FC_HA_TOTAL = {ha:0, net:0}; // 全員合計（除外メンバー含む）
 
 // ===============================================================
 //  実データ（GAS未設定時のフォールバック）
@@ -407,6 +408,7 @@ async function loadFCData() {
     FC_HA = {};
     // スプレッドシートの値は万円単位なので×10000して円に変換
     const NAME_MAP = {'齋藤':'齊藤'};
+    FC_HA_TOTAL = {ha:(j.total?.ha||0)*10000, net:(j.total?.net||0)*10000};
     (j.members||[]).forEach(m=>{
       const name = NAME_MAP[m.name] || m.name;
       FC_HA[name] = {...m, name, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000};
@@ -428,8 +430,8 @@ function renderHASection() {
   document.getElementById('ha-total-sub').textContent = `${members.length}名合計`;
   document.getElementById('ha-avg').textContent = fmt(Math.round(avgNet));
   document.getElementById('ha-avg-sub').textContent = '各メンバーの月平均の合計';
-  document.getElementById('ma-total').textContent = fmt(totalHa);
-  document.getElementById('ma-total-sub').textContent = `本契約累計`;
+  document.getElementById('ma-total').textContent = fmt(FC_HA_TOTAL.ha);
+  document.getElementById('ma-total-sub').textContent = `本契約累計（全員合計）`;
   document.getElementById('haCards').style.display = '';
 
   // 相関チャート（商談件数 × 申込月平均）
