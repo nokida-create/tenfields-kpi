@@ -604,7 +604,7 @@ function renderRanking() {
   if(charts.rank) charts.rank.destroy();
   charts.rank=new Chart(document.getElementById('rankChart'),{
     type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:L.month,data:sorted.map(([,v])=>v[rankMetric]??0),backgroundColor:sorted.map((_,i)=>i===0?colMap[rankMetric]:colFaded[rankMetric]),borderColor:col,borderWidth:1,borderRadius:5}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,callbacks:{label:c=>` ${c.raw.toLocaleString()}`}},datalabels:{display:true,anchor:'end',align:'right',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toLocaleString():null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}},y:{grid:{display:false}}}}
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:40}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,callbacks:{label:c=>` ${c.raw.toLocaleString()}`}},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toLocaleString():null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}},y:{grid:{display:false}}}}
   });
 
   // Monthly average (total ÷ months with data per member)
@@ -615,7 +615,7 @@ function renderRanking() {
   if(charts.cum) charts.cum.destroy();
   charts.cum=new Chart(document.getElementById('cumChart'),{
     type:'bar',data:{labels:cumS.map(([n])=>n),datasets:[{label:'月平均',data:cumS.map(([,v])=>v),backgroundColor:'rgba(255,209,102,.5)',borderColor:'#ffd166',borderWidth:1,borderRadius:5}]},
-    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{display:true,anchor:'end',align:'right',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toFixed(1):null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'}},y:{grid:{display:false}}}}
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:40}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toFixed(1):null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'}},y:{grid:{display:false}}}}
   });
 
   // Rank table
