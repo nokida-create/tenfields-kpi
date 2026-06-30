@@ -456,10 +456,10 @@ function renderOverview() {
   const tb = document.getElementById('sumTbody'); tb.innerHTML='';
   ms.forEach((m,i)=>{
     const p = i>0?ms[i-1]:null;
-    const tel=fcTotal(m,'tel'), mtg=fcTotal(m,'mtg');
-    const ptel=p?fcTotal(p,'tel'):null, pmtg=p?fcTotal(p,'mtg'):null;
+    const tel=fcAvg(m,'tel'), mtg=fcAvg(m,'mtg');
+    const ptel=p?fcAvg(p,'tel'):null, pmtg=p?fcAvg(p,'mtg'):null;
     const cnt = fcCount(m,'tel');
-    const bw = tel?Math.round(tel/maxT*52):0;
+    const bw = tel?Math.round(tel/maxT*80):0;
     const isL = i===ms.length-1;
     tb.innerHTML += `<tr>
       <td><span class="mbadge">${m.month}</span>${isL?' <span class="badge up" style="font-size:.62rem;">最新</span>':''}</td>
