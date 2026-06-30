@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>営業部 KPIダッシュボード v2</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f4f6f9;--card:#ffffff;--card2:#f0f2f7;--border:#e2e6ef;--accent:#4f6ef7;--green:#0db980;--red:#e8425a;--purple:#6c63ff;--text:#1a1f36;--muted:#6b7594;--yellow:#f5a623;--shadow:0 2px 8px rgba(0,0,0,.07)}
+body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic Pro','メイリオ',sans-serif}
+
+header{background:#fff;border-bottom:1px solid var(--border);padding:14px 26px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow)}
+header h1{font-size:1.25rem;font-weight:700;color:var(--text)}
+header h1 em{color:var(--accent);font-style:normal}
+.hbadge{background:var(--accent);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:20px;margin-left:8px}
+.hright{display:flex;align-items:center;gap:12px}
+.dot{width:7px;height:7px;border-radius:50%;animation:pulse 2s infinite}
+.dot.live{background:var(--green)}.dot.static{background:var(--yellow)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.update-info{font-size:.73rem;color:var(--muted)}
+
+.view-tabs{display:flex;gap:0;background:#fff;border-bottom:1px solid var(--border);padding:0 26px}
+.vtab{padding:11px 20px;font-size:.83rem;cursor:pointer;border:none;border-bottom:2px solid transparent;color:var(--muted);background:none;font-family:inherit;transition:.2s}
+.vtab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+
+.wrap{max-width:1500px;margin:0 auto;padding:20px 26px}
+
+/* KPI CARDS */
+.krow{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:20px}
+.kcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 22px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+.kcard::before{content:'';position:absolute;top:0;left:0;right:0;height:4px}
+.kcard.ct::before{background:linear-gradient(90deg,#4f6ef7,#818cf8)}
+.kcard.cm::before{background:linear-gradient(90deg,#0db980,#34d399)}
+.kcard.ca::before{background:linear-gradient(90deg,#e8425a,#f97316)}
+.klabel{color:var(--muted);font-size:.73rem;margin-bottom:6px;font-weight:500}
+.kval{font-size:2.2rem;font-weight:800;line-height:1}
+.kcard.ct .kval{color:#4f6ef7}.kcard.cm .kval{color:var(--green)}.kcard.ca .kval{color:var(--red)}
+.ksub{margin-top:8px;font-size:.73rem;color:var(--muted)}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-weight:600;font-size:.72rem}
+.badge.up{background:rgba(13,185,128,.12);color:var(--green)}.badge.dn{background:rgba(232,66,90,.12);color:var(--red)}
+
+/* CHART GRID */
+.cgrid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:20px}
+.ccard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 22px;box-shadow:var(--shadow)}
+.ctitle{font-size:.88rem;font-weight:700;margin-bottom:13px;color:var(--text)}
+.ctitle span{color:var(--muted);font-size:.73rem;font-weight:400;margin-left:7px}
+
+/* FILTER TABS */
+.ftabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap}
+.ftab{padding:4px 14px;border-radius:20px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:.76rem;cursor:pointer;font-family:inherit;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.ftab.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.ftab:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+
+/* TABLE */
+.twrap{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin-bottom:20px;overflow-x:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:.8rem;min-width:580px}
+th{color:var(--muted);font-weight:600;text-align:right;padding:7px 12px;border-bottom:2px solid var(--border);font-size:.73rem;white-space:nowrap;background:var(--card2)}
+th:first-child{text-align:left;border-radius:6px 0 0 0}
+th:last-child{border-radius:0 6px 0 0}
+td{padding:9px 12px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+td:first-child{text-align:left;font-weight:600}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#f8f9ff}
+.mbadge{display:inline-block;background:var(--card2);border-radius:5px;padding:2px 8px;font-size:.73rem;color:var(--text);border:1px solid var(--border)}
+.hi{color:var(--green);font-weight:700}.lo{color:var(--red)}.dim{color:var(--muted)}
+
+/* MEMBER GRID */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:20px}
+.mcard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+.mname{font-weight:700;font-size:.86rem;margin-bottom:9px;color:var(--text)}
+.mkpi{display:flex;flex-direction:column;gap:4px}
+.mrow{display:flex;justify-content:space-between;align-items:center;font-size:.76rem}
+.mlabel{color:var(--muted)}.mval{font-weight:600;color:var(--text)}
+.bar-bg{height:3px;background:var(--border);border-radius:2px;margin-top:2px}
+.bar-fill{height:3px;border-radius:2px;transition:width .4s}
+.mchg{font-size:.68rem;text-align:right;margin-top:2px}
+
+/* MONTH SELECTOR */
+.msel{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+.msbtn{padding:4px 12px;border-radius:20px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:.73rem;cursor:pointer;font-family:inherit;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.msbtn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+/* SPARKLINES */
+.srow{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:20px}
+.scard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px 18px;box-shadow:var(--shadow)}
+.scard h3{font-size:.74rem;color:var(--muted);margin-bottom:9px;font-weight:600}
+.swrap{position:relative;height:50px}
+
+/* GAS STATUS BANNER */
+.gas-banner{background:rgba(79,110,247,.08);border:1px solid rgba(79,110,247,.25);border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:.78rem;display:flex;align-items:center;gap:10px}
+.gas-banner.connected{background:rgba(13,185,128,.08);border-color:rgba(13,185,128,.3)}
+
+@media(max-width:900px){.krow,.cgrid,.srow{grid-template-columns:1fr}.wrap{padding:14px}}
+
+/* MEMBER DETAIL */
+.member-sel-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:18px}
+.msel-btn{padding:5px 15px;border-radius:20px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:.78rem;cursor:pointer;font-family:inherit;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.msel-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.msel-btn:hover:not(.active){border-color:var(--accent);color:var(--accent)}
+.md-header{display:flex;align-items:baseline;gap:12px;margin-bottom:16px}
+.md-name{font-size:1.5rem;font-weight:800;color:var(--accent)}
+.md-krow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.md-kcard{background:#fff;border:1px solid var(--border);border-radius:12px;padding:15px 18px;box-shadow:var(--shadow)}
+.md-kcard .klabel{font-size:.72rem;color:var(--muted);margin-bottom:4px;font-weight:500}
+.md-kcard .kval{font-size:1.7rem;font-weight:800}
+.md-kcard .kvsub{font-size:.72rem;color:var(--muted);margin-top:4px}
+.md-charts{display:grid;grid-template-columns:2fr 1fr;gap:13px;margin-bottom:18px}
+.dd-conv-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.dd-conv-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:16px 20px;box-shadow:var(--shadow)}
+.dd-conv-card.dd-conv-highlight{border-color:#4f6ef7;background:linear-gradient(135deg,#f0f4ff,#fff)}
+.dd-conv-label{font-size:.72rem;color:var(--muted);font-weight:600;margin-bottom:6px}
+.dd-conv-val{font-size:1.9rem;font-weight:800;color:var(--text);line-height:1.1}
+.dd-conv-unit{font-size:.95rem;font-weight:600;color:var(--muted);margin-left:3px}
+.dd-conv-sub{font-size:.72rem;color:var(--muted);margin-top:5px}
+@media(max-width:900px){.md-krow,.md-charts,.dd-conv-row{grid-template-columns:1fr}}
+/* AI分析 */
+.ai-status{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;padding:4px 12px;border-radius:20px;margin-bottom:16px}
+.ai-status.達成{background:#d1fae5;color:#065f46}
+.ai-status.未達{background:#fee2e2;color:#991b1b}
+.ai-status.要注意{background:#fef3c7;color:#92400e}
+.ai-goal{background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.ai-goal-num{font-size:2rem;font-weight:900;color:#2563eb;line-height:1}
+.ai-goal-label{font-size:.72rem;color:#3b82f6;font-weight:600}
+.ai-goal-gap{font-size:.85rem;font-weight:700}
+.ai-section{background:#fff;border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
+.ai-section-title{font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.ai-section p{font-size:.9rem;line-height:1.7;color:var(--text)}
+.ai-actions{list-style:none;display:flex;flex-direction:column;gap:10px}
+.ai-actions li{display:flex;gap:10px;font-size:.88rem;line-height:1.6;color:var(--text)}
+.ai-actions li::before{content:"→";color:var(--accent);font-weight:700;flex-shrink:0;margin-top:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div><h1>テンフィールズファクトリー <em>営業部 KPI</em><span class="hbadge">v2.0</span></h1></div>
+  <div class="hright">
+    <div class="dot" id="statusDot"></div>
+    <div class="update-info" id="updateInfo">読み込み中...</div>
+  </div>
+</header>
+
+<div class="view-tabs">
+  <button class="vtab active" onclick="switchView('overview',this)">チーム概要</button>
+  <button class="vtab" onclick="switchView('members',this)">個人別</button>
+  <button class="vtab" onclick="switchView('ranking',this)">ランキング</button>
+  <button class="vtab" onclick="switchView('detail',this)">担当者別</button>
+</div>
+
+<div class="wrap">
+
+<!-- ======== OVERVIEW ======== -->
+<div id="view-overview">
+  <div id="gasBanner" class="gas-banner" style="display:none"></div>
+
+  <div class="krow">
+    <div class="kcard ct"><div class="klabel">電話件数 / 1人当たり（今月）</div><div class="kval" id="kv-tel">—</div><div class="ksub"><span class="badge up" id="kc-tel">—</span> &ensp;12ヶ月平均: <strong id="ka-tel">—</strong></div></div>
+    <div class="kcard cm"><div class="klabel">総商談数 / 1人当たり（今月）</div><div class="kval" id="kv-mtg">—</div><div class="ksub"><span class="badge up" id="kc-mtg">—</span> &ensp;12ヶ月平均: <strong id="ka-mtg">—</strong></div></div>
+    <div class="kcard ca"><div class="klabel">総アクション / 1人当たり（今月）</div><div class="kval" id="kv-act">—</div><div class="ksub"><span class="badge up" id="kc-act">—</span> &ensp;12ヶ月平均: <strong id="ka-act">—</strong></div></div>
+  </div>
+
+  <div class="cgrid">
+    <div class="ccard">
+      <div class="ctitle">月次トレンド（1人当たり） <span>2025/7〜2026/6</span></div>
+      <div class="ftabs">
+        <button class="ftab active" onclick="switchTrend(this,'all')">全指標</button>
+        <button class="ftab" onclick="switchTrend(this,'tel')">電話</button>
+        <button class="ftab" onclick="switchTrend(this,'mtg')">商談</button>
+        <button class="ftab" onclick="switchTrend(this,'action')">アクション</button>
+      </div>
+      <div style="position:relative;height:250px"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="ccard">
+      <div class="ctitle">今月 vs 先月（1人当たり） <span id="barSub"></span></div>
+      <div style="position:relative;height:280px"><canvas id="barChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="twrap">
+    <div class="ctitle" style="margin-bottom:13px">月次KPIサマリー（1人当たり平均）</div>
+    <table><thead><tr><th>月</th><th>人数</th><th>電話/人</th><th>前月比</th><th>商談/人</th><th>前月比</th><th>アクション/人</th><th>前月比</th></tr></thead>
+    <tbody id="sumTbody"></tbody></table>
+  </div>
+
+  <div class="ccard" style="margin-bottom:20px">
+    <div class="ctitle" style="margin-bottom:10px">指標別 月次推移（1人当たり）</div>
+    <div class="ftabs" style="margin-bottom:14px">
+      <button class="ftab active" id="spTab-tel" onclick="switchSp(this,'tel')">📞 電話件数</button>
+      <button class="ftab" id="spTab-mtg" onclick="switchSp(this,'mtg')">🤝 総商談数</button>
+      <button class="ftab" id="spTab-act" onclick="switchSp(this,'action')">⚡ 総アクション</button>
+    </div>
+    <div style="position:relative;height:220px"><canvas id="spMain"></canvas></div>
+  </div>
+</div>
+
+<!-- ======== MEMBERS ======== -->
+<div id="view-members" style="display:none">
+  <div class="ctitle" style="margin-bottom:10px">月を選択</div>
+  <div class="msel" id="monthSel"></div>
+  <div class="ftabs" style="margin-bottom:16px">
+    <button class="ftab active" onclick="switchMM(this,'tel')">電話件数</button>
+    <button class="ftab" onclick="switchMM(this,'mtg')">総商談数</button>
+    <button class="ftab" onclick="switchMM(this,'action')">総アクション</button>
+  </div>
+  <div class="mgrid" id="memberGrid"></div>
+  <div class="twrap" style="margin-top:4px">
+    <div class="ctitle" style="margin-bottom:13px">個人別 月次推移（前月比付き）</div>
+    <table><thead id="mtHead"></thead><tbody id="mtBody"></tbody></table>
+  </div>
+</div>
+
+<!-- ======== RANKING ======== -->
+<div id="view-ranking" style="display:none">
+  <div class="ftabs" style="margin-bottom:14px">
+    <button class="ftab active" onclick="switchRM(this,'tel')">電話件数</button>
+    <button class="ftab" onclick="switchRM(this,'mtg')">総商談数</button>
+    <button class="ftab" onclick="switchRM(this,'action')">総アクション</button>
+  </div>
+  <div class="cgrid">
+    <div class="ccard">
+      <div class="ctitle">今月ランキング <span id="rankSub"></span></div>
+      <div style="position:relative;height:340px"><canvas id="rankChart"></canvas></div>
+    </div>
+    <div class="ccard">
+      <div class="ctitle">月平均</div>
+      <div style="position:relative;height:340px"><canvas id="cumChart"></canvas></div>
+    </div>
+  </div>
+  <div class="twrap">
+    <div class="ctitle" style="margin-bottom:13px">個人別ランキング詳細</div>
+    <table><thead><tr><th>順位</th><th>メンバー</th><th>今月</th><th>前月比</th><th>先月</th><th>月平均</th></tr></thead>
+    <tbody id="rankTbody"></tbody></table>
+  </div>
+</div>
+
+<!-- ======== MEMBER DETAIL ======== -->
+<div id="view-detail" style="display:none">
+  <div class="ctitle" style="margin-bottom:12px">担当者を選択</div>
+  <div class="member-sel-grid" id="detailMemberSel"></div>
+  <div id="detailContent" style="display:none">
+    <div class="md-header">
+      <div class="md-name" id="detailName">—</div>
+      <div style="font-size:.8rem;color:var(--muted)">FC事業部</div>
+    </div>
+    <!-- sub tabs -->
+    <div class="ftabs" style="margin:14px 0 4px">
+      <button class="ftab active" id="dtab-kpi" onclick="switchDetailTab('kpi')">📊 KPI詳細</button>
+      <button class="ftab" id="dtab-ai" onclick="switchDetailTab('ai')">🤖 AI分析</button>
+    </div>
+    <!-- KPI詳細 -->
+    <div id="detail-kpi-section">
+      <div class="md-krow">
+        <div class="md-kcard"><div class="klabel">電話件数（今月）</div><div class="kval" id="dd-tel" style="color:var(--purple)">—</div><div class="kvsub" id="dd-tel-chg">—</div></div>
+        <div class="md-kcard"><div class="klabel">総商談数（今月）</div><div class="kval" id="dd-mtg" style="color:var(--green)">—</div><div class="kvsub" id="dd-mtg-chg">—</div></div>
+        <div class="md-kcard"><div class="klabel">総アクション（今月）</div><div class="kval" id="dd-act" style="color:var(--red)">—</div><div class="kvsub" id="dd-act-chg">—</div></div>
+      </div>
+      <div class="dd-conv-row">
+        <div class="dd-conv-card">
+          <div class="dd-conv-label">📞 電話→アポ 転換率（過去平均）</div>
+          <div class="dd-conv-val"><span id="dd-conv-rate">—</span><span class="dd-conv-unit">件に1件アポ</span></div>
+          <div class="dd-conv-sub" id="dd-conv-sub">—</div>
+        </div>
+        <div class="dd-conv-card dd-conv-highlight">
+          <div class="dd-conv-label">🎯 目標40件達成に必要な来月の電話件数</div>
+          <div class="dd-conv-val"><span id="dd-conv-need" style="color:var(--accent)">—</span><span class="dd-conv-unit">件</span></div>
+          <div class="dd-conv-sub" id="dd-conv-need-sub">—</div>
+        </div>
+      </div>
+      <div class="md-charts">
+        <div class="ccard">
+          <div class="ctitle">月次推移（12ヶ月）</div>
+          <div style="position:relative;height:240px"><canvas id="detailTrendChart"></canvas></div>
+        </div>
+        <div class="ccard">
+          <div class="ctitle">今月の構成</div>
+          <div style="position:relative;height:240px"><canvas id="detailRadarChart"></canvas></div>
+        </div>
+      </div>
+      <div class="twrap">
+        <div class="ctitle" style="margin-bottom:13px">月別詳細</div>
+        <table><thead><tr><th>月</th><th>電話件数</th><th>前月比</th><th>総商談数</th><th>前月比</th><th>総アクション</th><th>前月比</th><th>チーム内順位（電話）</th></tr></thead>
+        <tbody id="detailTbody"></tbody></table>
+      </div>
+    </div>
+    <!-- AI分析 -->
+    <div id="detail-ai-section" style="display:none">
+      <div id="aiAnalysisContent"></div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /wrap -->
+
+<script>
+// ===============================================================
+//  GAS ENDPOINT (デプロイ後にここにURLを設定)
+// ===============================================================
+const GAS_URL = '';  // 例: 'https://script.google.com/macros/s/XXXX/exec'
+
+// ===============================================================
+//  実データ（GAS未設定時のフォールバック）
+// ===============================================================
+const STATIC = {
+  updated_at: '2026-06-29T10:00:00+09:00',
+  months: [
+    { month:"2025/7", team_total:{tel:596,mtg:219,action:null},
+      members:{梶岡:{tel:116,mtg:8,action:133},森川:{tel:18,mtg:0,action:18},寳坂:{tel:99,mtg:52,action:259},久保田:{tel:237,mtg:35,action:423},田島:{tel:268,mtg:26,action:376},鯖戸:{tel:232,mtg:44,action:337},齊藤:{tel:143,mtg:49,action:312},龍:{tel:247,mtg:41,action:380},山岡:{tel:174,mtg:22,action:286},野上:{tel:31,mtg:0,action:65},西垣:{tel:41,mtg:10,action:64},船野:{tel:31,mtg:2,action:55},石本:{tel:92,mtg:12,action:134},川口:{tel:101,mtg:62,action:270},沖田:{tel:25,mtg:62,action:122}}},
+    { month:"2025/8", team_total:{tel:1334,mtg:276,action:null},
+      members:{久保田:{tel:285,mtg:38,action:null},梶岡:{tel:180,mtg:22,action:null},濱田:{tel:210,mtg:31,action:null},森川:{tel:95,mtg:12,action:null},寳坂:{tel:130,mtg:40,action:null},齊藤:{tel:155,mtg:35,action:null},龍:{tel:200,mtg:38,action:null},石本:{tel:80,mtg:15,action:null}}},
+    { month:"2025/9", team_total:{tel:1360,mtg:283,action:null},
+      members:{久保田:{tel:290,mtg:40,action:null},梶岡:{tel:185,mtg:25,action:null},伊藤:{tel:220,mtg:35,action:null},森川:{tel:100,mtg:15,action:null},寳坂:{tel:140,mtg:42,action:null},齊藤:{tel:160,mtg:37,action:null},龍:{tel:210,mtg:40,action:null},竹本:{tel:180,mtg:28,action:null}}},
+    { month:"2025/10",team_total:{tel:2634,mtg:249,action:null},
+      members:{久保田:{tel:380,mtg:38,action:null},梶岡:{tel:300,mtg:22,action:null},伊藤:{tel:350,mtg:32,action:null},森川:{tel:280,mtg:18,action:null},寳坂:{tel:420,mtg:45,action:null},齊藤:{tel:310,mtg:35,action:null},龍:{tel:290,mtg:30,action:null},竹本:{tel:240,mtg:25,action:null},許:{tel:180,mtg:15,action:null}}},
+    { month:"2025/11",team_total:{tel:4077,mtg:294,action:null},
+      members:{久保田:{tel:520,mtg:42,action:null},梶岡:{tel:390,mtg:28,action:null},伊藤:{tel:480,mtg:38,action:null},森川:{tel:350,mtg:22,action:null},寳坂:{tel:560,mtg:48,action:null},齊藤:{tel:420,mtg:38,action:null},龍:{tel:380,mtg:32,action:null},竹本:{tel:310,mtg:28,action:null},許:{tel:220,mtg:18,action:null},澤田:{tel:280,mtg:25,action:null}}},
+    { month:"2025/12",team_total:{tel:3639,mtg:286,action:5488},
+      members:{寳坂:{tel:452,mtg:38,action:680},久保田:{tel:380,mtg:32,action:590},齊藤:{tel:310,mtg:35,action:520},龍:{tel:290,mtg:28,action:480},梶岡:{tel:260,mtg:22,action:420},伊藤:{tel:340,mtg:30,action:550},森川:{tel:220,mtg:18,action:360},竹本:{tel:250,mtg:24,action:410},許:{tel:180,mtg:15,action:295},澤田:{tel:230,mtg:22,action:380}}},
+    { month:"2026/1", team_total:{tel:3216,mtg:430,action:4961},
+      members:{沖田:{tel:0,mtg:2,action:2},川口:{tel:91,mtg:30,action:188},松本:{tel:0,mtg:0,action:0},梶岡:{tel:144,mtg:24,action:249},森川:{tel:573,mtg:24,action:670},伊藤:{tel:409,mtg:33,action:549},坂田:{tel:319,mtg:51,action:551},許:{tel:174,mtg:19,action:250},澤田:{tel:234,mtg:44,action:389},寳坂:{tel:243,mtg:48,action:495},久保田:{tel:256,mtg:31,action:487},竹本:{tel:372,mtg:31,action:516},齊藤:{tel:170,mtg:55,action:418},龍:{tel:231,mtg:38,action:400},石本:{tel:33,mtg:0,action:44}}},
+    { month:"2026/2", team_total:{tel:3571,mtg:323,action:5488},
+      members:{沖田:{tel:0,mtg:2,action:2},川口:{tel:50,mtg:31,action:103},松本:{tel:0,mtg:0,action:0},梶岡:{tel:362,mtg:25,action:518},森川:{tel:654,mtg:28,action:790},伊藤:{tel:440,mtg:34,action:657},坂田:{tel:331,mtg:21,action:557},許:{tel:165,mtg:15,action:242},澤田:{tel:351,mtg:42,action:486},寳坂:{tel:293,mtg:36,action:548},久保田:{tel:256,mtg:18,action:441},竹本:{tel:316,mtg:18,action:435},齊藤:{tel:139,mtg:25,action:323},龍:{tel:214,mtg:28,action:386}}},
+    { month:"2026/3", team_total:{tel:3605,mtg:374,action:5706},
+      members:{沖田:{tel:0,mtg:0,action:0},川口:{tel:15,mtg:28,action:47},松本:{tel:0,mtg:0,action:0},梶岡:{tel:325,mtg:30,action:496},森川:{tel:200,mtg:30,action:301},伊藤:{tel:540,mtg:30,action:782},坂田:{tel:320,mtg:25,action:593},許:{tel:79,mtg:6,action:111},澤田:{tel:159,mtg:59,action:278},松浦:{tel:232,mtg:7,action:319},那須野:{tel:437,mtg:9,action:481},寳坂:{tel:270,mtg:48,action:517},久保田:{tel:416,mtg:26,action:699},竹本:{tel:203,mtg:16,action:320},齊藤:{tel:204,mtg:29,action:384},龍:{tel:205,mtg:31,action:378}}},
+    { month:"2026/4", team_total:{tel:6238,mtg:376,action:8963},
+      members:{沖田:{tel:0,mtg:0,action:0},川口:{tel:0,mtg:0,action:0},松本:{tel:0,mtg:0,action:0},梶岡:{tel:276,mtg:33,action:421},森川:{tel:823,mtg:25,action:957},伊藤:{tel:581,mtg:30,action:790},坂田:{tel:53,mtg:14,action:196},許:{tel:112,mtg:4,action:152},澤田:{tel:312,mtg:30,action:398},松浦:{tel:306,mtg:20,action:528},那須野:{tel:411,mtg:26,action:692},松永:{tel:712,mtg:16,action:990},柴山:{tel:406,mtg:10,action:524},福原:{tel:519,mtg:10,action:567},寳坂:{tel:424,mtg:43,action:693},久保田:{tel:235,mtg:24,action:431},竹本:{tel:449,mtg:29,action:580},齊藤:{tel:279,mtg:28,action:515},龍:{tel:340,mtg:34,action:529}}},
+    { month:"2026/5", team_total:{tel:5268,mtg:440,action:7253},
+      members:{沖田:{tel:0,mtg:0,action:0},川口:{tel:0,mtg:0,action:1},松本:{tel:0,mtg:0,action:0},寳坂:{tel:261,mtg:48,action:472},久保田:{tel:331,mtg:15,action:566},齊藤:{tel:215,mtg:41,action:430},龍:{tel:256,mtg:35,action:391},梶岡:{tel:259,mtg:27,action:374},森川:{tel:600,mtg:24,action:720},竹本:{tel:323,mtg:35,action:450},伊藤:{tel:854,mtg:28,action:1054},坂田:{tel:0,mtg:0,action:0},許:{tel:37,mtg:7,action:61},澤田:{tel:168,mtg:38,action:251},那須野:{tel:112,mtg:42,action:272},松永:{tel:221,mtg:30,action:316},福原:{tel:656,mtg:35,action:763},柴山:{tel:492,mtg:26,action:583},濱田:{tel:483,mtg:8,action:null},近藤:{tel:30,mtg:12,action:90},舩野:{tel:136,mtg:5,action:241},石本:{tel:83,mtg:9,action:122},渡邊:{tel:0,mtg:7,action:10},高原:{tel:8,mtg:3,action:13},松浦:{tel:31,mtg:22,action:72},伊藤菜々子:{tel:4,mtg:0,action:null}}},
+    { month:"2026/6", team_total:{tel:11101,mtg:471,action:9678},
+      members:{沖田:{tel:0,mtg:0,action:0},川口:{tel:0,mtg:0,action:0},松本:{tel:0,mtg:0,action:0},寳坂:{tel:609,mtg:49,action:931},久保田:{tel:527,mtg:19,action:762},齊藤:{tel:305,mtg:50,action:563},龍:{tel:343,mtg:28,action:496},梶岡:{tel:403,mtg:25,action:528},森川:{tel:1110,mtg:34,action:1255},竹本:{tel:433,mtg:16,action:571},伊藤:{tel:647,mtg:26,action:847},坂田:{tel:0,mtg:0,action:0},許:{tel:61,mtg:6,action:84},澤田:{tel:294,mtg:40,action:433},那須野:{tel:145,mtg:36,action:453},福原:{tel:1130,mtg:22,action:1218},柴山:{tel:870,mtg:33,action:968},濱田:{tel:1661,mtg:32,action:null},山本:{tel:876,mtg:41,action:null},前田:{tel:1641,mtg:9,action:null},小川:{tel:46,mtg:5,action:60},鈴木:{tel:16,mtg:11,action:47},近藤:{tel:27,mtg:23,action:145},舩野:{tel:119,mtg:6,action:203},石本:{tel:72,mtg:4,action:117},野上:{tel:0,mtg:0,action:0},渡邊:{tel:5,mtg:14,action:26},高原:{tel:9,mtg:3,action:17},松浦:{tel:45,mtg:15,action:86},伊藤菜々子:{tel:52,mtg:1,action:null}}}
+  ]
+};
+
+// ===============================================================
+//  STATE
+// ===============================================================
+let D = null, curMonth = '', memberMetric = 'tel', rankMetric = 'tel';
+
+// FC事業部メンバー（開発部：小川・近藤・鈴木・野上・岸田・西垣・舩野・石本 を除く）
+const FC_MEMBERS = new Set(['梶岡','森川','伊藤','坂田','澤田','寳坂','久保田','竹本','齊藤','龍','那須野','福原','柴山','濱田','山本','前田']);
+
+function isFC(name) { return FC_MEMBERS.has(name); }
+
+// FC事業部メンバーの月別合計を計算
+function fcTotal(month, key) {
+  const vals = Object.entries(month.members)
+    .filter(([n]) => isFC(n))
+    .map(([, v]) => v[key] ?? 0);
+  return vals.length ? vals.reduce((a, b) => a + b, 0) : null;
+}
+
+// FC事業部の1人当たり平均（データあるメンバーのみカウント）
+function fcAvg(month, key) {
+  const vals = Object.entries(month.members)
+    .filter(([n]) => isFC(n))
+    .map(([, v]) => v[key] ?? null)
+    .filter(v => v !== null);
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 10) / 10;
+}
+
+// FC事業部のアクティブ人数（値があるメンバー）
+function fcCount(month, key) {
+  return Object.entries(month.members)
+    .filter(([n]) => isFC(n))
+    .filter(([, v]) => v[key] != null).length;
+}
+let charts = {};
+
+// ===============================================================
+//  BOOT
+// ===============================================================
+document.addEventListener('DOMContentLoaded', () => { loadData(); setInterval(loadData, 5*60*1000); });
+
+async function loadData() {
+  if (GAS_URL) {
+    try {
+      const r = await fetch(GAS_URL);
+      D = await r.json();
+      showBanner(true);
+    } catch(e) { D = STATIC; showBanner(false); }
+  } else { D = STATIC; showBanner(false); }
+  curMonth = D.months[D.months.length-1].month;
+  render();
+}
+
+function showBanner(live) {
+  const b = document.getElementById('gasBanner');
+  const dot = document.getElementById('statusDot');
+  if (live) {
+    b.style.display = 'flex'; b.className = 'gas-banner connected';
+    b.innerHTML = '🟢 <strong>リアルタイム連携中</strong> — GASから最新データを取得しています';
+    dot.className = 'dot live';
+    document.getElementById('updateInfo').textContent = `リアルタイム | ${new Date().toLocaleTimeString('ja-JP')}`;
+  } else {
+    b.style.display = 'none';
+    dot.className = 'dot static';
+    document.getElementById('updateInfo').textContent = `静的データ | 2026/06/29`;
+  }
+}
+
+// ===============================================================
+//  RENDER
+// ===============================================================
+function render() { renderOverview(); renderMemberView(); renderRanking(); }
+
+// ---- OVERVIEW ----
+function renderOverview() {
+  const ms = D.months, L = ms[ms.length-1], P = ms[ms.length-2];
+  const tels    = ms.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
+  const mtgs    = ms.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
+  const actions = ms.map(m=>fcAvg(m,'action')).filter(v=>v!=null);
+  setCard('tel', fcAvg(L,'tel'), fcAvg(P,'tel'), avg(tels));
+  setCard('mtg', fcAvg(L,'mtg'), fcAvg(P,'mtg'), avg(mtgs));
+  setCard('act', fcAvg(L,'action'), fcAvg(P,'action'), avg(actions));
+
+  const labels = ms.map(m=>`${m.month}(${fcCount(m,'tel')}名)`);
+  const telD = ms.map(m=>fcAvg(m,'tel'));
+  const mtgD = ms.map(m=>fcAvg(m,'mtg'));
+  const actD = ms.map(m=>fcAvg(m,'action'));
+
+  // Trend (combo: 商談=bar, 電話/アクション=line)
+  if(charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(document.getElementById('trendChart'), {
+    type:'bar', data:{ labels,
+      datasets:[
+        {type:'line',label:'電話件数',data:telD,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.07)',tension:.4,fill:true,pointRadius:4,borderWidth:2,yAxisID:'y',order:2},
+        {type:'bar', label:'商談件数',data:mtgD,backgroundColor:'rgba(0,201,167,.55)',borderColor:'#00c9a7',borderWidth:0,borderRadius:4,yAxisID:'y2',order:3,
+          datalabels:{display:true,anchor:'end',align:'top',color:'#00a88a',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
+        {type:'line',label:'総アクション',data:actD,borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,.04)',tension:.4,fill:false,pointRadius:4,borderWidth:2,borderDash:[5,3],yAxisID:'y',order:1},
+      ]},
+    options:{ responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
+        tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,
+          callbacks:{label:c=>` ${c.dataset.label}: ${c.raw!=null?c.raw.toLocaleString():'—'}`}},
+        datalabels:{}},
+      scales:{x:{grid:{color:'rgba(226,230,239,.5)'}},
+        y:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v}},
+        y2:{position:'right',grid:{display:false},ticks:{color:'#00a88a',font:{size:10},callback:v=>v}}}}
+  });
+
+  // Bar
+  document.getElementById('barSub').textContent = `${P.month} vs ${L.month}`;
+  if(charts.bar) charts.bar.destroy();
+  charts.bar = new Chart(document.getElementById('barChart'), {
+    type:'bar', data:{
+      labels:['電話件数','総商談数','総アクション'],
+      datasets:[
+        {label:P.month,data:[fcAvg(P,'tel'),fcAvg(P,'mtg'),fcAvg(P,'action')],backgroundColor:'rgba(108,99,255,.4)',borderColor:'#6c63ff',borderWidth:1,borderRadius:6},
+        {label:L.month,data:[fcAvg(L,'tel'),fcAvg(L,'mtg'),fcAvg(L,'action')],backgroundColor:'rgba(0,201,167,.5)',borderColor:'#00c9a7',borderWidth:1,borderRadius:6},
+      ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},
+        datalabels:{display:true,anchor:'end',align:'top',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v!=null?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
+      scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v}}}}
+  });
+
+  // Table
+  const maxT = Math.max(...telD.filter(v=>v!=null));
+  const tb = document.getElementById('sumTbody'); tb.innerHTML='';
+  ms.forEach((m,i)=>{
+    const p = i>0?ms[i-1]:null;
+    const tel=fcTotal(m,'tel'), mtg=fcTotal(m,'mtg'), act=fcTotal(m,'action');
+    const ptel=p?fcTotal(p,'tel'):null, pmtg=p?fcTotal(p,'mtg'):null, pact=p?fcTotal(p,'action'):null;
+    const cnt = fcCount(m,'tel');
+    const bw = tel?Math.round(tel/maxT*52):0;
+    const isL = i===ms.length-1;
+    tb.innerHTML += `<tr>
+      <td><span class="mbadge">${m.month}</span>${isL?' <span class="badge up" style="font-size:.62rem;">最新</span>':''}</td>
+      <td class="dim">${cnt}名</td>
+      <td class="${tel===maxT?'hi':''}">${f(tel)}<span style="display:inline-block;width:52px;height:3px;background:var(--border);border-radius:2px;margin-left:5px;vertical-align:middle"><span style="display:block;width:${bw}px;height:3px;background:#a78bfa;border-radius:2px"></span></span></td>
+      <td>${pct(tel,ptel)}</td>
+      <td>${f(mtg)}</td>
+      <td>${pct(mtg,pmtg)}</td>
+      <td>${f(act)}</td>
+      <td>${pct(act,pact)}</td>
+    </tr>`;
+  });
+
+  // Tabbed sparkline
+  window._spData = {labels, tel:telD, mtg:mtgD, action:actD};
+  renderSpMain('tel');
+}
+
+let _spMetric = 'tel';
+function switchSp(btn, metric) {
+  document.querySelectorAll('#view-overview .ftab[id^="spTab"]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  _spMetric = metric;
+  renderSpMain(metric);
+}
+
+function renderSpMain(metric) {
+  const d = window._spData;
+  if (!d) return;
+  const cfgs = {
+    tel:   {label:'電話/人',    color:'#a78bfa', bg:'rgba(167,139,250,.10)'},
+    mtg:   {label:'商談/人',    color:'#00c9a7', bg:'rgba(0,201,167,.10)'},
+    action:{label:'アクション/人',color:'#ff6b6b', bg:'rgba(255,107,107,.10)'},
+  };
+  const cfg = cfgs[metric];
+  if (charts.spMain) charts.spMain.destroy();
+  charts.spMain = new Chart(document.getElementById('spMain'), {
+    type:'bar',
+    data:{labels:d.labels, datasets:[{
+      label:cfg.label, data:d[metric],
+      backgroundColor:cfg.bg, borderColor:cfg.color,
+      borderWidth:2, borderRadius:6,
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,callbacks:{label:c=>` ${c.raw!=null?c.raw.toLocaleString():'—'}`}},
+        datalabels:{display:true,anchor:'end',align:'top',font:{size:11,weight:'bold'},color:cfg.color,
+          formatter:v=>v!=null?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
+      scales:{
+        x:{grid:{display:false},ticks:{maxRotation:45,font:{size:10}}},
+        y:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v}}
+      }
+    }
+  });
+}
+
+function setCard(k,v,pv,a) {
+  const vE=document.getElementById('kv-'+k),cE=document.getElementById('kc-'+k),aE=document.getElementById('ka-'+k);
+  if(!vE)return;
+  vE.textContent=v!=null?v.toLocaleString():'—';
+  if(v!=null&&pv!=null){const p=(v-pv)/pv*100;cE.textContent=`${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(1)}% vs 先月`;cE.className=`badge ${p>=0?'up':'dn'}`;}
+  if(a)aE.textContent=Math.round(a).toLocaleString();
+}
+
+// ---- MEMBER VIEW ----
+function renderMemberView() {
+  const ms = D.months;
+  const sel = document.getElementById('monthSel'); sel.innerHTML='';
+  ms.forEach(m=>{
+    const b=document.createElement('button');
+    b.className='msbtn'+(m.month===curMonth?' active':'');
+    b.textContent=m.month;
+    b.onclick=()=>{curMonth=m.month;document.querySelectorAll('.msbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderMemberCards();renderMemberTable();};
+    sel.appendChild(b);
+  });
+  renderMemberCards(); renderMemberTable();
+}
+
+function renderMemberCards() {
+  const cur=D.months.find(m=>m.month===curMonth);
+  const pi=D.months.findIndex(m=>m.month===curMonth)-1;
+  const prv=pi>=0?D.months[pi]:null;
+  if(!cur)return;
+  const sorted=Object.entries(cur.members).filter(([name,v])=>isFC(name)&&(v[memberMetric]??0)>0).sort((a,b)=>(b[1][memberMetric]??0)-(a[1][memberMetric]??0));
+  const maxV=Math.max(...sorted.map(([,v])=>v[memberMetric]??0));
+  const col=memberMetric==='tel'?'#a78bfa':memberMetric==='mtg'?'#00c9a7':'#ff6b6b';
+  const grid=document.getElementById('memberGrid');grid.innerHTML='';
+  const medals=['🥇','🥈','🥉'];
+  sorted.forEach(([name,vals],idx)=>{
+    const cv=vals[memberMetric]??null;
+    const pv=prv?.members[name]?.[memberMetric]??null;
+    const p=cv!=null&&pv!=null?(cv-pv)/pv*100:null;
+    const bw=maxV>0?Math.round((cv??0)/maxV*100):0;
+    grid.innerHTML+=`<div class="mcard">
+      <div class="mname ${idx<3?'hi':''}">${medals[idx]??''}${name}</div>
+      <div class="mkpi">
+        <div class="mrow"><span class="mlabel">${memberMetric==='tel'?'電話':memberMetric==='mtg'?'商談':'アクション'}</span><span class="mval">${cv!=null?cv.toLocaleString():'—'}</span></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${bw}%;background:${col}"></div></div>
+        ${p!=null?`<div class="mchg ${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}% vs 先月</div>`:''}
+      </div></div>`;
+  });
+}
+
+function renderMemberTable() {
+  const ms=D.months;
+  const allM=[...new Set(ms.flatMap(m=>Object.keys(m.members)))].filter(isFC).sort();
+  const thead=document.getElementById('mtHead');
+  thead.innerHTML=`<tr><th>メンバー</th>${ms.map(m=>`<th colspan="2" style="text-align:center;border-left:1px solid var(--border)">${m.month}</th>`).join('')}</tr><tr><th></th>${ms.map(()=>'<th>値</th><th>前月比</th>').join('')}</tr>`;
+  const tbody=document.getElementById('mtBody');tbody.innerHTML='';
+  allM.forEach(name=>{
+    let row=`<tr><td>${name}</td>`;
+    ms.forEach((m,i)=>{
+      const v=m.members[name]?.[memberMetric]??null;
+      const pv=i>0?ms[i-1].members[name]?.[memberMetric]??null:null;
+      const p=v!=null&&pv!=null?(v-pv)/pv*100:null;
+      row+=`<td style="border-left:1px solid var(--border)">${v!=null?v.toLocaleString():'<span class="dim">—</span>'}</td>`;
+      row+=`<td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'<span class="dim">—</span>'}</td>`;
+    });
+    tbody.innerHTML+=row+'</tr>';
+  });
+}
+
+function switchMM(btn,m){document.querySelectorAll('#view-members .ftab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');memberMetric=m;renderMemberCards();renderMemberTable();}
+
+// ---- RANKING ----
+function renderRanking() {
+  const ms=D.months, L=ms[ms.length-1], P=ms[ms.length-2];
+  document.getElementById('rankSub').textContent=L.month;
+  const col=rankMetric==='tel'?'#a78bfa':rankMetric==='mtg'?'#00c9a7':'#ff6b6b';
+
+  // Today ranking
+  const sorted=Object.entries(L.members).filter(([name,v])=>isFC(name)&&(v[rankMetric]??0)>0).sort((a,b)=>(b[1][rankMetric]??0)-(a[1][rankMetric]??0)).slice(0,15);
+  const colMap = {tel:'rgba(167,139,250,0.8)', mtg:'rgba(0,201,167,0.8)', action:'rgba(255,107,107,0.8)'};
+  const colFaded = {tel:'rgba(167,139,250,0.4)', mtg:'rgba(0,201,167,0.4)', action:'rgba(255,107,107,0.4)'};
+  if(charts.rank) charts.rank.destroy();
+  charts.rank=new Chart(document.getElementById('rankChart'),{
+    type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:L.month,data:sorted.map(([,v])=>v[rankMetric]??0),backgroundColor:sorted.map((_,i)=>i===0?colMap[rankMetric]:colFaded[rankMetric]),borderColor:col,borderWidth:1,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,callbacks:{label:c=>` ${c.raw.toLocaleString()}`}},datalabels:{display:true,anchor:'end',align:'right',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toLocaleString():null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}},y:{grid:{display:false}}}}
+  });
+
+  // Monthly average (total ÷ months with data per member)
+  const cum={},cumCnt={};
+  ms.forEach(m=>Object.entries(m.members).forEach(([n,v])=>{if(isFC(n)&&(v[rankMetric]??null)!=null){cum[n]=(cum[n]||0)+v[rankMetric];cumCnt[n]=(cumCnt[n]||0)+1;}}));
+  const cumAvg={};Object.keys(cum).forEach(n=>{cumAvg[n]=cumCnt[n]?Math.round(cum[n]/cumCnt[n]*10)/10:0;});
+  const cumS=Object.entries(cumAvg).sort((a,b)=>b[1]-a[1]).slice(0,15);
+  if(charts.cum) charts.cum.destroy();
+  charts.cum=new Chart(document.getElementById('cumChart'),{
+    type:'bar',data:{labels:cumS.map(([n])=>n),datasets:[{label:'月平均',data:cumS.map(([,v])=>v),backgroundColor:'rgba(255,209,102,.5)',borderColor:'#ffd166',borderWidth:1,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{display:true,anchor:'end',align:'right',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toFixed(1):null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'}},y:{grid:{display:false}}}}
+  });
+
+  // Rank table
+  const tb=document.getElementById('rankTbody');tb.innerHTML='';
+  sorted.forEach(([name,vals],idx)=>{
+    const v=vals[rankMetric]??null;
+    const pv=P.members[name]?.[rankMetric]??null;
+    const p=v!=null&&pv!=null?(v-pv)/pv*100:null;
+    const medals=['🥇','🥈','🥉'];
+    tb.innerHTML+=`<tr>
+      <td class="${idx<3?'hi':''}">${medals[idx]??`${idx+1}位`}</td>
+      <td><strong>${name}</strong></td>
+      <td class="hi">${v!=null?v.toLocaleString():'—'}</td>
+      <td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'—'}</td>
+      <td class="dim">${pv!=null?pv.toLocaleString():'—'}</td>
+      <td>${cumAvg[name]!=null?(cumAvg[name]).toFixed(1):'—'}</td>
+    </tr>`;
+  });
+}
+
+function switchRM(btn,m){document.querySelectorAll('#view-ranking .ftab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');rankMetric=m;renderRanking();}
+
+// ---- MEMBER DETAIL ----
+let detailMember = '';
+let detailTab = 'kpi';
+
+const MEMBER_ANALYSIS = {"梶岡":{"status":"未達","summary":"梶岡担当は月次商談目標40件に対し、過去12ヶ月間で一度も目標を達成できていません。商談件数は平均で25.08件に留まり、最高でも2026年4月の33件でした。","analysis":"商談件数は初期の8件から増加傾向は見られるものの、2026年に入ってからは24〜33件で停滞しており、目標の40件には大きく届いていません。電話件数やアクション件数は十分な量がある月もありますが、電話件数に対する商談化率が平均約9%と低く、アプローチの質やターゲティングに課題があります。","actions":["電話スクリプトの見直しと顧客ターゲティングの精度向上により、電話に対する商談化率を現状の約9%から12%以上へ引き上げる。","目標商談数40件を達成するため、月次で電話件数を最低400件・アクション件数を最低650件と設定し、高い商談化率を維持しながら活動量を安定的に確保する。","週次で電話内容・アプローチの質・商談化率を上長と共にレビューし、PDCAサイクルを回すことで目標達成に向けた改善を継続的に実施する。"]},"森川":{"status":"未達","summary":"森川担当の商談件数は月次目標40件に対し、参加から1年間一度も達成できていません。直近12ヶ月の平均商談件数は約20.8件で、最高値は2026年6月の34件に留まっています。","analysis":"初期の0件から着実に商談件数を伸ばしており、特に2026年に入ってからは30件台に近づく月も現れるなど成長傾向が見られます。しかし、電話件数が増加しても商談数が伸び悩む月があるため、商談化率の改善やアプローチの質の向上が課題です。","actions":["月次目標40件を達成するため、現在の商談化率（直近2026/6の実績3.06%）を最低でも3.5%まで向上させるためのトークスクリプトや提案資料を見直す。","商談目標40件達成に必要な行動量として、電話件数を現在の月平均約418件から最低1,200件に増加させる。","商談数が一時的に減少した月の活動内容を詳細に分析し、ターゲット層の見直しや提案内容のブラッシュアップなど、より効果的なアプローチ戦略を特定し実践する。"]},"伊藤":{"status":"未達","summary":"伊藤の商談件数は月次目標40件を一度も達成しておらず、直近6月の実績は過去最低の26件に落ち込んでいます。特に2026年4月以降は30件、28件、26件と連続して下降傾向にあり、平均商談件数は29件と目標を大きく下回っています。","analysis":"電話件数やアクション件数は増加傾向にある一方で商談件数は下降しており、活動量と成果が連動していない点が大きな課題です。特に2026年5月は過去最高の活動量（電話854件・アクション1054件）にも関わらず商談は28件と低いことから、商談化率やリードの質に根本的な問題があると考えられます。","actions":["現在の電話からの商談化率（直近3ヶ月平均4.15%）を目標の6.2%まで向上させるため、トークスクリプトの改善と週次でのロールプレイングを必須化する。","マーケティングチームと連携し、アプローチ対象となるリードの質を再評価し、質の高いリードへのアプローチを20%強化する。","商談に繋がりやすい特定のアクションを特定し、その活動量をKPIとして設定し直し、週次で進捗を確認する。"]},"坂田":{"status":"要注意","summary":"坂田氏は1月に月次目標を達成したものの、2月以降は商談件数が目標40件を大幅に下回っています。特に4月は活動量が激減し、5月と6月は全ての活動が停止している極めて深刻な状況です。","analysis":"商談件数は1月の51件をピークに急減し、1月から4月の平均は27.75件に留まっています。活動量が4月以降に顕著に低下しており、現在の状況は活動停止による成果の喪失を示唆しています。初期のパフォーマンスから能力は持つが、現状は活動自体が最大の課題です。","actions":["5月・6月の活動停止原因を緊急でヒアリングし、現状を詳細に把握する。","活動を再開させ、直近の目標として電話件数200件・商談件数20件を設定し、週次で進捗を確認する。","過去のデータから有効なアプローチを分析し、必要に応じて個別コーチングやスクリプトの見直しを実施する。"]},"澤田":{"status":"要注意","summary":"澤田氏は過去8ヶ月間で月次目標の商談件数40件に対し、平均37.5件と惜しくも未達です。8ヶ月中4ヶ月で目標を達成しましたが、特に2025年11・12月、2026年4・5月は未達に終わりました。","analysis":"商談件数は月によって変動が大きく、安定的な目標達成に課題が見られます。2026年1月から3月にかけては好調を維持したものの、その後一時的に目標を下回っており安定性に欠けます。電話件数と商談件数の間に明確な相関が見られない月もあり、アプローチの質の改善が今後の強みとなるでしょう。","actions":["月次商談件数40件達成を最低ラインとし、安定して45件以上を目指す。","目標未達月の具体的な要因を深く分析し、特に2026年4月と5月のアプローチ内容と商談化率を詳細に検証する。","電話件数に対する商談獲得率が低い月に着目し、電話アプローチの質を高めるための研修やスクリプト改善を実施する。"]},"寳坂":{"status":"達成","summary":"寳坂は過去12ヶ月間で月次商談目標40件を平均44.75件で達成し、10ヶ月で目標をクリアしました。特に直近4ヶ月間（2026年3月〜6月）は毎月43〜49件の商談を継続的に獲得しており、安定した高いパフォーマンスを示しています。","analysis":"商談件数は概ね目標を上回っており、特に少ない電話件数で高い商談数を達成していた初期の効率の良さが強みです。しかし後期には電話件数が増加しているにも関わらず商談獲得率が低下する傾向が見られます。","actions":["全体の商談獲得率（電話/商談）を現在の平均13.76%から15%以上を目指し、特に電話件数が多い月での効率を向上させる。","全ての月で「アクション件数」を記録し、電話・アクション・商談間の正確な相関関係を把握することで、より効果的な営業戦略を立案する。","商談獲得率が高かった初期のアプローチ内容を分析し、ベストプラクティスとしてチームに展開する。"]},"久保田":{"status":"要注意","summary":"久保田氏の月次目標である商談件数40件に対し、過去12ヶ月間の平均商談件数は29.83件で達成率は約74.6%に留まっています。特に直近半年間（2026年1〜6月）は平均商談件数が22.17件と大幅に減少し、目標を大きく下回る状況です。","analysis":"商談件数は2025年後半には目標に迫る月もあったものの、2026年に入ってから急激に悪化し、直近では商談獲得の効率が著しく低下しています。電話やアクション数は維持されているにも関わらず商談件数が伸び悩んでおり、アプローチ方法やリードの質・商談化率に課題がある可能性が高いです。","actions":["直近3ヶ月のアクション数に対する商談化率を詳細に分析し、ヒアリング内容や提案資料の見直し、またはターゲットリードの再定義を行う。具体的な目標としてアクション100件あたりの商談件数を現在の約2.5件から5件へ向上させる。","2025年9・11月に目標を達成した際の具体的なアプローチ手法・成功要因を分析し、チーム内で共有する。また週に1回ロールプレイングを実施しスキル向上を図る。","マネージャーによる個別コーチングを週に1回実施し、電話件数やアクション数だけでなく商談獲得に至るまでの各ステップの質に焦点を当てた進捗確認を強化する。"]},"竹本":{"status":"要注意","summary":"竹本氏は月次商談目標40件を全期間で一度も達成しておらず、平均商談件数は25件に留まっています。特に直近3ヶ月では5月に過去最高の35件を記録したものの、6月は16件と大幅に下落しており、目標達成への道のりは厳しい状況です。","analysis":"商談件数は目標に大きく届かず、またその推移は不安定で5月に最高値を記録した直後に6月は大幅に落ち込むなど、継続的な成果創出に課題が見られます。電話件数やアクション件数は高い月もありますが、商談への転換率が低い傾向にあり、アプローチの質やターゲティングの改善が喫緊の課題です。","actions":["電話スクリプトの見直しとロールプレイングの実施により、電話からの商談転換率を現状の約7%から最低10%に向上させ、商談件数を安定的に30件以上を目指す。","商談件数35件を達成した2026年5月のアプローチ手法・ターゲット層・商談内容を詳細に分析し、成功事例を横展開して再現性を高める。","月間電話件数450件・アクション件数600件を最低ラインとして安定的に実施し、活動量を確保する。"]},"齊藤":{"status":"未達","summary":"齊藤氏の過去12ヶ月間の平均商談件数は38.08件であり、月次目標40件に対して未達の状態です。特に2026年2〜4月は25〜29件と低迷しましたが、直近2026年5月は41件、6月は50件と目標を達成し改善傾向にあります。","analysis":"商談件数は12ヶ月中4ヶ月のみ目標達成に留まり、電話件数と商談件数の直接的な相関は一貫していません。アクション件数が多い月は商談件数も多い傾向が見られ、特に2026年6月は効率的な活動ができています。","actions":["商談件数を月平均42件に引き上げるため、電話件数と商談件数の高効率な組み合わせを特定し、その成功パターンを再現する。","商談転換率が低かった月の活動内容を深掘りし、スクリプトや提案内容の改善を月次で行うことで商談の質を高める。","全てのアクションデータを記録し、電話・アクション・商談件数の関係を明確に可視化し、目標達成に必要なアクション量を設定する。"]},"龍":{"status":"未達","summary":"過去12ヶ月間の平均商談件数は約33.6件で、月次目標の40件を下回っています。目標達成は2025年7月（41件）と9月（40件）のわずか2ヶ月に留まり、特に直近では28〜35件で推移し低迷傾向が見られます。","analysis":"2025年10月以降、商談件数は一貫して目標未達が続き、直近の平均は約32.8件と低迷しています。電話件数が増加しても商談件数が伸び悩む傾向が見られ、現在の約13.4%の商談転換率をさらに改善する余地があります。","actions":["電話から商談への転換率を現在の約13.4%から15%へ改善し、月間商談件数を少なくとも35件以上に安定させるための商談トークスクリプトとヒアリング項目を改善する。","既存顧客データや失注理由を分析し、より成約確度の高いリード特性を定義する。その上で商談獲得に繋がりやすいリードへのアプローチを最優先とし、月間5件を高確度リードからの獲得とする。","アクション件数の内訳を明確にし、商談獲得に寄与したアクションを特定。今後3ヶ月間は効果的なアクションに週次で最低20件を割り当て、商談件数を安定的に月38件以上を目指す。"]},"那須野":{"status":"要注意","summary":"那須野氏は過去4ヶ月で商談件数が9件→26件→42件→36件と推移しました。5月には目標を達成したものの、他の3ヶ月は未達であり、特に直近6月も36件で目標を下回っています。","analysis":"当初は電話件数が多い一方で商談件数が低かったですが、5月には電話件数を大幅に減らしつつ目標を達成しました。これは高い商談化率を示唆しますが、6月は電話・商談ともに減少しており、安定した目標達成には至っていません。","actions":["月間の電話件数を最低200件に安定させ、商談創出の機会を確保する。","5月の高商談化率の成功要因（ターゲット選定・ヒアリング強化など）を分析し、商談化率25%以上を維持するよう実践する。","商談件数40件を安定して達成するため、週次で進捗を確認し不足分は追加の架電や提案で補う計画を立てる。"]},"福原":{"status":"要注意","summary":"福原氏の直近3ヶ月の商談件数は、目標40件に対し4月が10件、5月が35件、6月が22件と推移しています。5月には目標に迫ったものの、直近6月は5月の実績から約37%減少し、目標を大きく下回っています。","analysis":"アクション数と電話件数は増加傾向にあるものの、商談件数は5月をピークに6月は大きく減少しており、商談獲得率が不安定です。特に6月はアクション数が大幅に増加したにも関わらず商談獲得率が4月と同水準の約1.8%に落ち込み、行動量と成果が比例しない点が課題です。","actions":["2026年5月に達成した商談獲得率約4.6%の成功要因を詳細に分析し、効果的なアプローチを具体的に特定する。","特定した成功要因を元に、今後は商談獲得率を最低3%以上で安定させ商談件数40件を達成できるよう、アクションの質改善に注力する。","アクション件数と商談獲得率を週次でモニタリングし、パフォーマンスが低下した際は速やかに上長と連携し改善策を講じる。"]},"柴山":{"status":"要注意","summary":"柴山は商談件数を4月の10件から6月には33件へと大幅に増加させましたが、月次目標の40件にはまだ到達していません。直近の6月時点での達成率は82.5%です。","analysis":"商談件数は着実な増加トレンドにあり、特に5月から6月にかけては電話件数とアクション件数の大幅な増加が商談件数に貢献しています。活動量の増加とそれによる商談獲得数の改善が強みですが、アクション数に対する商談件数の割合が6月に低下しており、効率性向上が課題です。","actions":["次月は商談件数40件の目標達成を最優先とし、未達分（7件）を上回るアプローチ計画を策定する。","アクション量維持に加え、商談獲得効率向上のため電話アプローチや商談準備の質を高めるトレーニングを実施する。","アクション件数に対する商談件数の転換率（6月実績3.4%）を目標値4.5%（5月実績）まで改善するための具体的な施策を検討し実行する。"]},"濱田":{"status":"未達","summary":"濱田氏の商談件数は月次目標40件に対し、すべての観測期間で未達です。特に2026年5月は8件と著しく低迷しましたが、翌6月には32件まで回復し、目標達成まで残り8件となっています。","analysis":"商談件数は2025年8月の31件から2026年5月には8件まで急落しましたが、2026年6月には電話件数を大幅に増やし（1,661件）32件まで回復するV字回復の兆しが見られます。しかし電話件数に対する商談獲得率は2026年5月以降約2%と極めて低く、電話の質や効率性に大きな課題を抱えている可能性が高いです。","actions":["電話でのアプローチ方法やトークスクリプトを見直し、商談獲得率を現在の約2%から次月は最低5%へ改善し、商談件数40件達成を目指す。","2026年6月に実績のある電話件数1,661件以上の活動量を維持・強化し、商談機会を創出する。","2026年5月の商談件数著しい低迷の原因を特定するため、電話対応ログや商談記録をレビューし、週に1回のロールプレイングを通じてスキルアップを図る。"]},"山本":{"status":"達成","summary":"山本担当は2026年6月に商談件数41件を達成し、月次目標の40件を1件上回りました。この期間中に876件の電話を実施しています。","analysis":"データが1ヶ月分のみのためトレンド分析は限定的ですが、目標を上回る商談を創出しており、高い実行力が強みです。876件という架電数も商談獲得に大きく貢献していると考えられます。","actions":["来月も商談件数40件以上の達成を目指し、現在の高い架電数を維持すること。","今後も月次で商談件数の推移をモニタリングし、目標達成状況を継続的に評価する。","商談からの成約率や案件単価など、次のフェーズのKPIも収集しより詳細なパフォーマンス分析を可能にする。"]},"前田":{"status":"未達","summary":"前田氏は2026年6月に電話を1,641件実施しましたが、月次目標である商談件数40件に対し実績はわずか9件に留まり、達成率は22.5%でした。この結果は目標を大きく下回っています。","analysis":"活動量は電話件数1,641件と非常に高いものの、電話からの商談獲得率が約0.55%と極めて低いことが最大の課題です。現在の方法では架電量に対して成果が見合っていません。","actions":["商談獲得率を現在の0.55%から最低でも2.5%に向上させるため、電話スクリプトの見直しとロールプレイングを週に2回実施する。","架電内容を上長と週に一度レビューし、効果的なヒアリングと価値提案の質を改善する。","商談に至らなかった電話の原因を週次で分析し、ターゲット顧客の再定義またはアプローチ方法の調整を行う。"]}};
+
+function renderDetailMemberSel() {
+  const allM = [...new Set(D.months.flatMap(m=>Object.keys(m.members)))].filter(isFC).sort();
+  const sel = document.getElementById('detailMemberSel');
+  sel.innerHTML = '';
+  allM.forEach(name=>{
+    const b = document.createElement('button');
+    b.className = 'msel-btn' + (name===detailMember?' active':'');
+    b.textContent = name;
+    b.onclick = ()=>{ detailMember=name; renderDetailMemberSel(); document.getElementById('detailContent').style.display=''; document.getElementById('detailName').textContent=name; switchDetailTab(detailTab); };
+    sel.appendChild(b);
+  });
+}
+
+function switchDetailTab(tab) {
+  detailTab = tab;
+  ['kpi','ai'].forEach(t=>{
+    document.getElementById('dtab-'+t).classList.toggle('active', t===tab);
+  });
+  document.getElementById('detail-kpi-section').style.display = tab==='kpi' ? '' : 'none';
+  document.getElementById('detail-ai-section').style.display  = tab==='ai'  ? '' : 'none';
+  if(tab==='kpi') renderDetailContent();
+  if(tab==='ai')  renderDetailAnalysis();
+}
+
+function renderDetailAnalysis() {
+  if(!detailMember) return;
+  const a = MEMBER_ANALYSIS[detailMember];
+  const el = document.getElementById('aiAnalysisContent');
+  if(!a){ el.innerHTML='<p style="color:var(--muted);padding:20px">分析データがありません。</p>'; return; }
+
+  const last = D.months[D.months.length-1];
+  const latestMtg = last.members[detailMember]?.mtg ?? null;
+  const TARGET = 40;
+  const gap = latestMtg != null ? latestMtg - TARGET : null;
+  const gapHtml = gap != null
+    ? `<div class="ai-goal-gap" style="color:${gap>=0?'#16a34a':'#dc2626'}">${gap>=0?'▲':'▼'}${Math.abs(gap)}件 目標${gap>=0?'達成':'まで'}</div>`
+    : '<div class="ai-goal-gap" style="color:var(--muted)">データなし</div>';
+
+  // 直近1年間の平均商談件数（データがある月のみ）
+  const mtgVals = D.months.map(m=>m.members[detailMember]?.mtg).filter(v=>v!=null);
+  const avgMtg = mtgVals.length ? Math.round(mtgVals.reduce((a,b)=>a+b,0)/mtgVals.length*10)/10 : null;
+  const avgGap = avgMtg != null ? Math.round((avgMtg - TARGET)*10)/10 : null;
+
+  const statusIcon = {達成:'✅', 未達:'❌', 要注意:'⚠️'}[a.status] || '';
+
+  el.innerHTML = `
+    <div class="ai-status ${a.status}">${statusIcon} ${a.status}</div>
+    <div class="ai-goal">
+      <div>
+        <div class="ai-goal-label">商談件数 月次目標</div>
+        <div class="ai-goal-num">${TARGET}<span style="font-size:1rem;font-weight:600">件</span></div>
+      </div>
+      <div style="width:1px;background:var(--border);align-self:stretch"></div>
+      <div>
+        <div class="ai-goal-label">直近実績（${last.month}）</div>
+        <div class="ai-goal-num" style="color:${gap!=null&&gap>=0?'#16a34a':'#dc2626'}">${latestMtg??'—'}<span style="font-size:1rem;font-weight:600">件</span></div>
+        ${gapHtml}
+      </div>
+      <div style="width:1px;background:var(--border);align-self:stretch"></div>
+      <div>
+        <div class="ai-goal-label">1年平均（${mtgVals.length}ヶ月）</div>
+        <div class="ai-goal-num" style="color:${avgGap!=null&&avgGap>=0?'#16a34a':'#1e40af'}">${avgMtg??'—'}<span style="font-size:1rem;font-weight:600">件</span></div>
+        ${avgGap!=null?`<div class="ai-goal-gap" style="color:${avgGap>=0?'#16a34a':'#6b7280'}">${avgGap>=0?'▲':'▼'}${Math.abs(avgGap)}件 vs目標</div>`:''}
+      </div>
+    </div>
+    <div class="ai-section">
+      <div class="ai-section-title">📋 現状サマリー</div>
+      <p>${a.summary}</p>
+    </div>
+    <div class="ai-section">
+      <div class="ai-section-title">📈 トレンド分析</div>
+      <p>${a.analysis}</p>
+    </div>
+    <div class="ai-section">
+      <div class="ai-section-title">🎯 今後のアクション</div>
+      <ul class="ai-actions">${a.actions.map(ac=>`<li>${ac}</li>`).join('')}</ul>
+    </div>
+  `;
+}
+
+function renderDetailContent() {
+  if(!detailMember) return;
+
+  const ms = D.months;
+  const labels = ms.map(m=>m.month);
+  const telArr = ms.map(m=>m.members[detailMember]?.tel??null);
+  const mtgArr = ms.map(m=>m.members[detailMember]?.mtg??null);
+  const actArr = ms.map(m=>m.members[detailMember]?.action??null);
+
+  // KPI cards
+  const last = ms[ms.length-1], prev = ms[ms.length-2];
+  const setCard = (id, chgId, arr, prevArr)=>{
+    const cur = arr[arr.length-1];
+    const p = arr[arr.length-2];
+    document.getElementById(id).textContent = cur!=null?cur.toLocaleString():'—';
+    if(cur!=null&&p!=null&&p>0){
+      const pct = (cur-p)/p*100;
+      document.getElementById(chgId).innerHTML = `<span class="${pct>=0?'hi':'lo'}">${pct>=0?'▲':'▼'}${Math.abs(pct).toFixed(1)}%</span> vs 先月`;
+    } else {
+      document.getElementById(chgId).textContent = '先月比 —';
+    }
+  };
+  setCard('dd-tel','dd-tel-chg',telArr);
+  setCard('dd-mtg','dd-mtg-chg',mtgArr);
+  setCard('dd-act','dd-act-chg',actArr);
+
+  // 電話→アポ転換率（直近月）& 来月必要電話件数
+  const lastValid = [...ms].reverse().find(m=>m.members[detailMember]?.tel>0&&m.members[detailMember]?.mtg!=null);
+  const convRateEl = document.getElementById('dd-conv-rate');
+  const convSubEl = document.getElementById('dd-conv-sub');
+  const needEl = document.getElementById('dd-conv-need');
+  const needSubEl = document.getElementById('dd-conv-need-sub');
+  if(lastValid){
+    const lTel = lastValid.members[detailMember].tel;
+    const lMtg = lastValid.members[detailMember].mtg;
+    const telPerMtg = lMtg>0 ? Math.round(lTel/lMtg*10)/10 : null;
+    const convPct = lMtg>0 ? Math.round(lMtg/lTel*1000)/10 : 0;
+    if(telPerMtg!=null){
+      convRateEl.textContent = telPerMtg.toFixed(1);
+      convSubEl.textContent = `転換率 ${convPct}%（${lastValid.month} / 電話${lTel.toLocaleString()}件・商談${lMtg}件）`;
+      const TARGET = 40;
+      const neededTel = Math.ceil(TARGET * telPerMtg);
+      needEl.textContent = neededTel.toLocaleString();
+      needSubEl.textContent = `${lastValid.month}の転換率${convPct}%を維持した場合（目標${TARGET}件 × ${telPerMtg.toFixed(1)}件/アポ）`;
+    } else {
+      convRateEl.textContent = '—'; convSubEl.textContent = `${lastValid.month}は商談0件`;
+      needEl.textContent = '—'; needSubEl.textContent = '商談データなし';
+    }
+  } else {
+    convRateEl.textContent = '—'; convSubEl.textContent = 'データ不足';
+    needEl.textContent = '—'; needSubEl.textContent = 'データ不足';
+  }
+
+  // Trend chart
+  if(charts.detailTrend) charts.detailTrend.destroy();
+  charts.detailTrend = new Chart(document.getElementById('detailTrendChart'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'電話',data:telArr,borderColor:'#a78bfa',backgroundColor:'rgba(167,139,250,.1)',tension:.3,pointRadius:5,borderWidth:2,yAxisID:'y',datalabels:{display:true,align:'top',anchor:'end',color:'#a78bfa',font:{size:10,weight:'bold'},formatter:v=>v!=null?v.toLocaleString():null}},
+      {label:'商談',data:mtgArr,borderColor:'#00c9a7',backgroundColor:'rgba(0,201,167,.08)',tension:.3,pointRadius:5,borderWidth:2,yAxisID:'y2',datalabels:{display:true,align:'bottom',anchor:'start',color:'#00c9a7',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
+      {label:'アクション',data:actArr,borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,.08)',tension:.3,pointRadius:5,borderWidth:2,borderDash:[4,3],yAxisID:'y',datalabels:{display:false}},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#6b7594',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{}},
+      scales:{
+        x:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594',maxRotation:45}},
+        y:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594'},position:'left'},
+        y2:{grid:{display:false},ticks:{color:'#0db980'},position:'right'},
+      }
+    }
+  });
+
+  // Radar chart (今月のみ)
+  const lm = last.members[detailMember]??{};
+  const teamAvg = k=>{
+    const vals=Object.entries(last.members).filter(([n,v])=>isFC(n)).map(([,v])=>v[k]??0);
+    return vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+  };
+  if(charts.detailRadar) charts.detailRadar.destroy();
+  charts.detailRadar = new Chart(document.getElementById('detailRadarChart'),{
+    type:'bar',
+    data:{
+      labels:['電話','商談','アクション'],
+      datasets:[
+        {label:detailMember,data:[lm.tel??0,lm.mtg??0,lm.action??0],backgroundColor:'rgba(108,99,255,.5)',borderColor:'#6c63ff',borderWidth:1,borderRadius:5},
+        {label:'FC平均',data:[teamAvg('tel'),teamAvg('mtg'),teamAvg('action')].map(v=>Math.round(v)),backgroundColor:'rgba(255,209,102,.35)',borderColor:'#ffd166',borderWidth:1,borderRadius:5},
+      ]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#6b7594',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},
+        datalabels:{display:true,anchor:'end',align:'top',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
+      scales:{x:{grid:{display:false},ticks:{color:'#6b7594'}},y:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594',callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}}}
+    }
+  });
+
+  // Detail table
+  const tb = document.getElementById('detailTbody');
+  tb.innerHTML = '';
+  ms.forEach((m,i)=>{
+    const v = m.members[detailMember];
+    if(!v&&i<ms.length-3) return;
+    const pv = i>0?ms[i-1].members[detailMember]:null;
+    const fmtChg = (cur,prev)=>{
+      if(cur==null) return '<span class="dim">—</span>';
+      if(prev==null||prev===0) return '<span class="dim">—</span>';
+      const p=(cur-prev)/prev*100;
+      return `<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`;
+    };
+    // team rank for tel in this month
+    const ranked=Object.entries(m.members).filter(([n])=>isFC(n)).sort((a,b)=>(b[1].tel??0)-(a[1].tel??0));
+    const rank=ranked.findIndex(([n])=>n===detailMember)+1;
+    const rankStr=rank>0?`${rank}/${ranked.length}位`:'—';
+    tb.innerHTML+=`<tr>
+      <td>${m.month}</td>
+      <td class="${v?.tel?'hi':''}">${v?.tel!=null?v.tel.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td>${fmtChg(v?.tel,pv?.tel)}</td>
+      <td>${v?.mtg!=null?v.mtg.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td>${fmtChg(v?.mtg,pv?.mtg)}</td>
+      <td>${v?.action!=null?v.action.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td>${fmtChg(v?.action,pv?.action)}</td>
+      <td class="dim">${rankStr}</td>
+    </tr>`;
+  });
+}
+
+// ---- VIEW SWITCH ----
+function switchView(v,btn){
+  ['overview','members','ranking','detail'].forEach(x=>document.getElementById('view-'+x).style.display=x===v?'':'none');
+  if(v==='detail'&&D){ renderDetailMemberSel(); if(detailMember) renderDetailContent(); }
+  if(v==='ranking'){ setTimeout(()=>{if(charts.rank)charts.rank.resize();if(charts.cum)charts.cum.resize();},50); }
+  document.querySelectorAll('.vtab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ---- TREND TAB ----
+function switchTrend(btn,m){
+  document.querySelectorAll('#view-overview .ftabs .ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(!charts.trend)return;
+  charts.trend.data.datasets.forEach((ds,i)=>{ds.hidden=m==='all'?false:m==='tel'?i!==0:m==='mtg'?i!==1:i!==2;});
+  charts.trend.update();
+}
+
+// ---- HELPERS ----
+Chart.register(ChartDataLabels);
+Chart.defaults.color='#6b7594';Chart.defaults.borderColor='#e2e6ef';
+Chart.defaults.font.family="'Hiragino Kaku Gothic Pro','メイリオ',sans-serif";Chart.defaults.font.size=11;
+Chart.defaults.plugins.datalabels={display:false};
+
+const avg=arr=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
+const f=v=>v!=null?v.toLocaleString():'<span class="dim">—</span>';
+function pct(c,p){if(c==null||p==null||p===0)return '<span class="dim">—</span>';const x=(c-p)/p*100;return `<span class="${x>=0?'hi':'lo'}">${x>=0?'▲':'▼'}${Math.abs(x).toFixed(1)}%</span>`;}
+</script>
+</body>
+</html>
