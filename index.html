@@ -469,7 +469,7 @@ function renderOverview() {
     tb.innerHTML += `<tr>
       <td><span class="mbadge">${m.month}</span>${isL?' <span class="badge up" style="font-size:.62rem;">最新</span>':''}</td>
       <td class="dim">${cnt}名</td>
-      <td class="${tel===maxT?'hi':''}">${f(tel)}<span style="display:inline-block;width:52px;height:3px;background:var(--border);border-radius:2px;margin-left:5px;vertical-align:middle"><span style="display:block;width:${bw}px;height:3px;background:#a78bfa;border-radius:2px"></span></span></td>
+      <td class="${tel===maxT?'hi':''}"><div style="display:flex;flex-direction:column;gap:3px"><span>${f(tel)}</span><span style="display:block;width:80px;height:4px;background:var(--border);border-radius:2px"><span style="display:block;width:${bw}px;max-width:80px;height:4px;background:#a78bfa;border-radius:2px"></span></span></div></td>
       <td>${pct(tel,ptel)}</td>
       <td>${f(mtg)}</td>
       <td>${pct(mtg,pmtg)}</td>
