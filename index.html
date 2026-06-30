@@ -182,6 +182,19 @@ tr:hover td{background:#f8f9ff}
     <tbody id="sumTbody"></tbody></table>
   </div>
 
+  <!-- 申込金額 KPIカード -->
+  <div class="krow ha-krow" id="haCards" style="display:none;margin-bottom:18px">
+    <div class="kcard" style="border-left:4px solid #f5a623"><div class="klabel">申込金額 合計（累計）</div><div class="kval" id="ha-total" style="color:#f5a623">—</div><div class="kvsub" id="ha-total-sub">FCランキングAPIから取得中</div></div>
+    <div class="kcard" style="border-left:4px solid #4f6ef7"><div class="klabel">申込金額 月平均（チーム）</div><div class="kval" id="ha-avg" style="color:#4f6ef7">—</div><div class="kvsub" id="ha-avg-sub">在籍月数で補正</div></div>
+    <div class="kcard" style="border-left:4px solid #0db980"><div class="klabel">本契約金額 合計（累計）</div><div class="kval" id="ma-total" style="color:#0db980">—</div><div class="kvsub" id="ma-total-sub">—</div></div>
+  </div>
+
+  <!-- 相関分析：商談件数 × 申込金額 -->
+  <div class="ccard" id="corrCard" style="display:none;margin-bottom:20px">
+    <div class="ctitle">📊 相関分析：商談件数 × 申込金額（月平均）<span style="font-size:.72rem;color:var(--muted);margin-left:8px">点にカーソルでメンバー名表示</span></div>
+    <div style="position:relative;height:300px"><canvas id="corrChart"></canvas></div>
+  </div>
+
   <div class="ccard" style="margin-bottom:20px">
     <div class="ctitle" style="margin-bottom:10px">指標別 月次推移（1人当たり）</div>
     <div class="ftabs" style="margin-bottom:14px">
@@ -212,18 +225,32 @@ tr:hover td{background:#f8f9ff}
   <div class="ftabs" style="margin-bottom:14px">
     <button class="ftab active" onclick="switchRM(this,'tel')">電話件数</button>
     <button class="ftab" onclick="switchRM(this,'mtg')">総商談数</button>
+    <button class="ftab" id="rmHaBtn" onclick="switchRM(this,'ha')" style="display:none">💰 申込金額</button>
   </div>
-  <div class="cgrid">
+  <div class="cgrid" id="rankChartGrid">
     <div class="ccard">
       <div class="ctitle">今月ランキング <span id="rankSub"></span></div>
       <div style="position:relative;height:340px"><canvas id="rankChart"></canvas></div>
     </div>
     <div class="ccard">
-      <div class="ctitle">月平均</div>
+      <div class="ctitle" id="cumTitle">月平均</div>
       <div style="position:relative;height:340px"><canvas id="cumChart"></canvas></div>
     </div>
   </div>
-  <div class="twrap">
+  <!-- 申込金額ランキング（HA専用） -->
+  <div id="haRankSection" style="display:none">
+    <div class="cgrid">
+      <div class="ccard">
+        <div class="ctitle">申込金額 累計ランキング</div>
+        <div style="position:relative;height:380px"><canvas id="haRankChart"></canvas></div>
+      </div>
+      <div class="ccard">
+        <div class="ctitle">申込金額 月平均ランキング</div>
+        <div style="position:relative;height:380px"><canvas id="haAvgChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="twrap" id="rankTableWrap">
     <div class="ctitle" style="margin-bottom:13px">個人別ランキング詳細</div>
     <table><thead><tr><th>順位</th><th>メンバー</th><th>今月</th><th>前月比</th><th>先月</th><th>月平均</th></tr></thead>
     <tbody id="rankTbody"></tbody></table>
@@ -249,7 +276,7 @@ tr:hover td{background:#f8f9ff}
       <div class="md-krow">
         <div class="md-kcard"><div class="klabel">電話件数（今月）</div><div class="kval" id="dd-tel" style="color:var(--purple)">—</div><div class="kvsub" id="dd-tel-chg">—</div></div>
         <div class="md-kcard"><div class="klabel">総商談数（今月）</div><div class="kval" id="dd-mtg" style="color:var(--green)">—</div><div class="kvsub" id="dd-mtg-chg">—</div></div>
-        <div class="md-kcard"><div class="klabel">総アクション（今月）</div><div class="kval" id="dd-act" style="color:var(--red)">—</div><div class="kvsub" id="dd-act-chg">—</div></div>
+        <div class="md-kcard" id="dd-ha-card" style="border-left:4px solid #f5a623;display:none"><div class="klabel">申込金額（累計）</div><div class="kval" id="dd-ha" style="color:#f5a623">—</div><div class="kvsub" id="dd-ha-sub">—</div></div>
       </div>
       <div class="dd-conv-row">
         <div class="dd-conv-card">
@@ -293,6 +320,8 @@ tr:hover td{background:#f8f9ff}
 //  GAS ENDPOINT (デプロイ後にここにURLを設定)
 // ===============================================================
 const GAS_URL = '';  // 例: 'https://script.google.com/macros/s/XXXX/exec'
+const FC_HA_URL = 'https://script.google.com/macros/s/AKfycbwGKb9CmHAJtfnRUUz0eTAZ1F20gq0T-w-io5wYYiwHZ99FwuClkdkDikpL9-17wvIGdg/exec';
+let FC_HA = {}; // name -> {ha, avgHa, ma, avgNet, months, cancelRate}
 
 // ===============================================================
 //  実データ（GAS未設定時のフォールバック）
@@ -366,7 +395,116 @@ let charts = {};
 // ===============================================================
 //  BOOT
 // ===============================================================
-document.addEventListener('DOMContentLoaded', () => { loadData(); setInterval(loadData, 5*60*1000); });
+document.addEventListener('DOMContentLoaded', () => { loadData(); loadFCData(); setInterval(loadData, 5*60*1000); setInterval(loadFCData, 10*60*1000); });
+
+async function loadFCData() {
+  try {
+    const r = await fetch(FC_HA_URL);
+    const j = await r.json();
+    FC_HA = {};
+    (j.members||[]).forEach(m=>{ FC_HA[m.name]=m; });
+    renderHASection();
+  } catch(e) { console.warn('FC API取得失敗:', e); }
+}
+
+function renderHASection() {
+  if(!Object.keys(FC_HA).length) return;
+
+  // KPIカード
+  const members = Object.values(FC_HA);
+  const totalHa = members.reduce((s,m)=>s+m.ha,0);
+  const totalMa = members.reduce((s,m)=>s+m.ma,0);
+  const avgHa   = members.reduce((s,m)=>s+m.avgHa,0);
+  const fmt = v => v>=10000 ? (v/10000).toFixed(1)+'万' : v.toLocaleString()+'円';
+  document.getElementById('ha-total').textContent = fmt(totalHa);
+  document.getElementById('ha-total-sub').textContent = `${members.length}名合計`;
+  document.getElementById('ha-avg').textContent = fmt(Math.round(avgHa));
+  document.getElementById('ha-avg-sub').textContent = '各メンバーの月平均の合計';
+  document.getElementById('ma-total').textContent = fmt(totalMa);
+  document.getElementById('ma-total-sub').textContent = `本契約累計`;
+  document.getElementById('haCards').style.display = '';
+
+  // 相関チャート（商談件数 × 申込月平均）
+  if(!D) return;
+  const ms = D.months;
+  const scatterData = [];
+  Object.entries(FC_HA).filter(([n])=>isFC(n)).forEach(([name,hd])=>{
+    const mtgVals = ms.map(m=>m.members[name]?.mtg).filter(v=>v!=null);
+    const avgMtg = mtgVals.length ? Math.round(mtgVals.reduce((a,b)=>a+b,0)/mtgVals.length*10)/10 : null;
+    if(avgMtg!=null && hd.avgHa>0) scatterData.push({x:avgMtg, y:hd.avgHa, name});
+  });
+  if(charts.corr) charts.corr.destroy();
+  charts.corr = new Chart(document.getElementById('corrChart'),{
+    type:'scatter',
+    data:{datasets:[{
+      label:'メンバー',
+      data:scatterData,
+      backgroundColor:'rgba(79,110,247,.7)',
+      pointRadius:8, pointHoverRadius:10,
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,
+          callbacks:{
+            label:c=>{const d=scatterData[c.dataIndex]; return `${d.name}：商談${d.x}件 / 申込${d.y>=1000?(d.y/10000).toFixed(1)+'万':d.y}円`;}
+          }
+        },
+        datalabels:{display:true,anchor:'end',align:'top',font:{size:10,weight:'bold'},color:'#1a1f36',formatter:(v,ctx)=>scatterData[ctx.dataIndex]?.name},
+      },
+      scales:{
+        x:{title:{display:true,text:'月平均商談件数（件）',color:'var(--muted)',font:{size:11}},grid:{color:'rgba(226,230,239,.8)'}},
+        y:{title:{display:true,text:'月平均申込金額（円）',color:'var(--muted)',font:{size:11}},grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+'万':v}},
+      }
+    },
+    plugins:[ChartDataLabels]
+  });
+  document.getElementById('corrCard').style.display = '';
+
+  // ランキングの申込タブを表示
+  document.getElementById('rmHaBtn').style.display = '';
+
+  // 担当者別カード更新
+  if(detailMember && FC_HA[detailMember]) updateDetailHACard(detailMember);
+}
+
+function updateDetailHACard(name) {
+  const hd = FC_HA[name];
+  if(!hd) return;
+  const card = document.getElementById('dd-ha-card');
+  const fmt = v => v>=10000?(v/10000).toFixed(1)+'万円':v.toLocaleString()+'円';
+  document.getElementById('dd-ha').textContent = fmt(hd.ha);
+  document.getElementById('dd-ha-sub').textContent = `月平均 ${fmt(hd.avgHa)} ／ 在籍${hd.months}ヶ月`;
+  card.style.display = '';
+}
+
+function renderHARanking() {
+  if(!Object.keys(FC_HA).length) return;
+  document.getElementById('rankChartGrid').style.display = 'none';
+  document.getElementById('rankTableWrap').style.display = 'none';
+  document.getElementById('haRankSection').style.display = '';
+
+  const sorted = Object.entries(FC_HA).filter(([n])=>isFC(n)).sort((a,b)=>b[1].ha-a[1].ha);
+  const sortedAvg = [...sorted].sort((a,b)=>b[1].avgHa-a[1].avgHa);
+  const fmt = v=>v>=10000?(v/10000).toFixed(1)+'万':v.toLocaleString();
+  const colFc = 'rgba(245,166,35,.7)';
+
+  if(charts.haRank) charts.haRank.destroy();
+  charts.haRank = new Chart(document.getElementById('haRankChart'),{
+    type:'bar',data:{labels:sorted.map(([n])=>n),datasets:[{label:'申込累計',data:sorted.map(([,v])=>v.ha),backgroundColor:colFc,borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
+      plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円`}}},
+      scales:{x:{ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+'万':v}},y:{grid:{display:false}}}}
+  });
+
+  if(charts.haAvg) charts.haAvg.destroy();
+  charts.haAvg = new Chart(document.getElementById('haAvgChart'),{
+    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均申込',data:sortedAvg.map(([,v])=>v.avgHa),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
+      plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円/月`}}},
+      scales:{x:{ticks:{callback:v=>v>=10000?(v/10000).toFixed(0)+'万':v}},y:{grid:{display:false}}}}
+  });
+}
 
 async function loadData() {
   if (GAS_URL) {
@@ -627,7 +765,22 @@ function renderRanking() {
   });
 }
 
-function switchRM(btn,m){document.querySelectorAll('#view-ranking .ftab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');rankMetric=m;renderRanking();}
+function switchRM(btn,m){
+  document.querySelectorAll('#view-ranking .ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  rankMetric=m;
+  if(m==='ha'){
+    document.getElementById('rankChartGrid').style.display='none';
+    document.getElementById('rankTableWrap').style.display='none';
+    document.getElementById('haRankSection').style.display='';
+    renderHARanking();
+  } else {
+    document.getElementById('rankChartGrid').style.display='';
+    document.getElementById('rankTableWrap').style.display='';
+    document.getElementById('haRankSection').style.display='none';
+    renderRanking();
+  }
+}
 
 // ---- MEMBER DETAIL ----
 let detailMember = '';
@@ -643,7 +796,7 @@ function renderDetailMemberSel() {
     const b = document.createElement('button');
     b.className = 'msel-btn' + (name===detailMember?' active':'');
     b.textContent = name;
-    b.onclick = ()=>{ detailMember=name; renderDetailMemberSel(); document.getElementById('detailContent').style.display=''; document.getElementById('detailName').textContent=name; switchDetailTab(detailTab); };
+    b.onclick = ()=>{ detailMember=name; renderDetailMemberSel(); document.getElementById('detailContent').style.display=''; document.getElementById('detailName').textContent=name; switchDetailTab(detailTab); updateDetailHACard(name); };
     sel.appendChild(b);
   });
 }
