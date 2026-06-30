@@ -429,8 +429,6 @@ function renderOverview() {
           datalabels:{display:true,anchor:'end',align:'top',color:'#7c5cbf',font:{size:9,weight:'bold'},formatter:v=>v!=null?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
         {type:'bar', label:'商談件数',data:mtgD,backgroundColor:'rgba(0,201,167,.55)',borderColor:'#00c9a7',borderWidth:0,borderRadius:4,yAxisID:'y2',order:3,
           datalabels:{display:true,anchor:'end',align:'top',color:'#00a88a',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
-        {type:'line',label:'総アクション',data:actD,borderColor:'#ff6b6b',backgroundColor:'rgba(255,107,107,.04)',tension:.4,fill:false,pointRadius:4,borderWidth:2,borderDash:[5,3],yAxisID:'y',order:1,
-          datalabels:{display:true,anchor:'end',align:'bottom',color:'#cc4444',font:{size:9,weight:'bold'},formatter:v=>v!=null?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
       ]},
     options:{ responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{position:'top',labels:{boxWidth:12,padding:14,font:{size:11}}},
