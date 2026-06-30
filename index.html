@@ -892,7 +892,6 @@ function renderDetailContent() {
   };
   setCard('dd-tel','dd-tel-chg',telArr);
   setCard('dd-mtg','dd-mtg-chg',mtgArr);
-  setCard('dd-act','dd-act-chg',actArr);
 
   // 電話→アポ転換率（直近月）& 来月必要電話件数
   const lastValid = [...ms].reverse().find(m=>m.members[detailMember]?.tel>0&&m.members[detailMember]?.mtg!=null);
