@@ -362,9 +362,12 @@ const STATIC = {
 let D = null, curMonth = '', memberMetric = 'tel', rankMetric = 'tel';
 
 // FC事業部メンバー（開発部：小川・近藤・鈴木・野上・岸田・西垣・舩野・石本 を除く）
-const FC_MEMBERS = new Set(['梶岡','森川','伊藤','坂田','寳坂','久保田','竹本','齊藤','龍','那須野','福原','柴山','濱田','山本','前田']);
+// 入社順
+const FC_JOIN_ORDER = ['久保田','寳坂','龍','齊藤','梶岡','森川','竹本','坂田','伊藤','那須野','柴山','福原','濱田','山本','前田'];
+const FC_MEMBERS = new Set(FC_JOIN_ORDER);
 
 function isFC(name) { return FC_MEMBERS.has(name); }
+function joinOrder(name) { const i=FC_JOIN_ORDER.indexOf(name); return i>=0?i:999; }
 
 // FC事業部メンバーの月別合計を計算
 function fcTotal(month, key) {
@@ -709,7 +712,7 @@ function renderMemberCards() {
 
 function renderMemberTable() {
   const ms=D.months;
-  const allM=[...new Set(ms.flatMap(m=>Object.keys(m.members)))].filter(isFC).sort();
+  const allM=[...new Set(ms.flatMap(m=>Object.keys(m.members)))].filter(isFC).sort((a,b)=>joinOrder(a)-joinOrder(b));
   const thead=document.getElementById('mtHead');
   thead.innerHTML=`<tr><th>メンバー</th>${ms.map(m=>`<th colspan="2" style="text-align:center;border-left:1px solid var(--border)">${m.month}</th>`).join('')}</tr><tr><th></th>${ms.map(()=>'<th>値</th><th>前月比</th>').join('')}</tr>`;
   const tbody=document.getElementById('mtBody');tbody.innerHTML='';
