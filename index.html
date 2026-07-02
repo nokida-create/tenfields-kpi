@@ -171,9 +171,16 @@ tr:hover td{background:#f8f9ff}
 <div id="view-overview">
   <div id="gasBanner" class="gas-banner" style="display:none"></div>
 
-  <div class="krow">
+  <div class="krow" style="grid-template-columns:repeat(2,1fr)">
     <div class="kcard ct"><div class="klabel">電話件数 / 1人当たり（今月）</div><div class="kval" id="kv-tel">—</div><div class="ksub"><span class="badge up" id="kc-tel">—</span> &ensp;12ヶ月平均: <strong id="ka-tel">—</strong></div></div>
     <div class="kcard cm"><div class="klabel">総商談数 / 1人当たり（今月）</div><div class="kval" id="kv-mtg">—</div><div class="ksub"><span class="badge up" id="kc-mtg">—</span> &ensp;12ヶ月平均: <strong id="ka-mtg">—</strong></div></div>
+  </div>
+
+  <!-- 申込金額 KPIカード（APIロード後に値が入る） -->
+  <div class="krow" id="haCards" style="grid-template-columns:repeat(3,1fr);margin-bottom:18px">
+    <div class="kcard" style="border-top:4px solid #f5a623"><div class="klabel">💰 純申込金額 累計（全員合計）</div><div class="kval" id="ha-total" style="color:#f5a623;font-size:1.8rem">—</div><div class="ksub" id="ha-total-sub" style="color:var(--muted);font-size:.72rem">読み込み中...</div></div>
+    <div class="kcard" style="border-top:4px solid #4f6ef7"><div class="klabel">💰 純申込金額 月平均（チーム合計）</div><div class="kval" id="ha-avg" style="color:#4f6ef7;font-size:1.8rem">—</div><div class="ksub" id="ha-avg-sub" style="color:var(--muted);font-size:.72rem">読み込み中...</div></div>
+    <div class="kcard" style="border-top:4px solid #0db980"><div class="klabel">🏠 本契約金額 累計（全員合計）</div><div class="kval" id="ma-total" style="color:#0db980;font-size:1.8rem">—</div><div class="ksub" id="ma-total-sub" style="color:var(--muted);font-size:.72rem">読み込み中...</div></div>
   </div>
 
   <div class="cgrid">
@@ -198,11 +205,10 @@ tr:hover td{background:#f8f9ff}
     <tbody id="sumTbody"></tbody></table>
   </div>
 
-  <!-- 申込金額 KPIカード -->
-  <div class="krow ha-krow" id="haCards" style="display:none;margin-bottom:18px">
-    <div class="kcard" style="border-left:4px solid #f5a623"><div class="klabel">純申込金額 合計（申込-解約）</div><div class="kval" id="ha-total" style="color:#f5a623">—</div><div class="kvsub" id="ha-total-sub">FCランキングAPIから取得中</div></div>
-    <div class="kcard" style="border-left:4px solid #4f6ef7"><div class="klabel">純申込金額 月平均（チーム）</div><div class="kval" id="ha-avg" style="color:#4f6ef7">—</div><div class="kvsub" id="ha-avg-sub">在籍月数で補正</div></div>
-    <div class="kcard" style="border-left:4px solid #0db980"><div class="klabel">本契約金額 合計（累計）</div><div class="kval" id="ma-total" style="color:#0db980">—</div><div class="kvsub" id="ma-total-sub">—</div></div>
+  <!-- 申込金額 月次推移チャート -->
+  <div class="ccard" id="haMonthlyCard" style="display:none;margin-bottom:20px">
+    <div class="ctitle">💰 純申込金額 月次推移（チーム合計） <span id="haMonthlyUpdated"></span></div>
+    <div style="position:relative;height:240px"><canvas id="haMonthlyChart"></canvas></div>
   </div>
 
   <!-- 相関分析：商談件数 × 申込金額 -->
@@ -516,12 +522,48 @@ function renderHASection() {
   const avgNet   = members.reduce((s,m)=>s+m.avgNet,0); // 純申込金額月平均の合計
   const fmt = v => v>=100000000 ? (v/100000000).toFixed(1)+'億' : v>=10000 ? Math.round(v/10000).toLocaleString()+'万' : v.toLocaleString()+'円';
   document.getElementById('ha-total').textContent = fmt(FC_HA_TOTAL.net);
-  document.getElementById('ha-total-sub').textContent = `全員合計`;
+  document.getElementById('ha-total-sub').textContent = `申込金額累計 全員合計`;
   document.getElementById('ha-avg').textContent = fmt(Math.round(avgNet));
   document.getElementById('ha-avg-sub').textContent = '各メンバーの月平均の合計';
   document.getElementById('ma-total').textContent = fmt(FC_HA_TOTAL.ha);
-  document.getElementById('ma-total-sub').textContent = `本契約累計（全員合計）`;
-  document.getElementById('haCards').style.display = '';
+  document.getElementById('ma-total-sub').textContent = `本契約金額累計 全員合計`;
+
+  // 月次推移チャート（全メンバー合計のmonthlyNet）
+  if(FC_MONTHS.length){
+    const monthlyTotals = FC_MONTHS.map((_,i)=>{
+      return Object.values(FC_HA).filter(m=>isFC(m.name)).reduce((s,m)=>s+(m.monthlyNet?.[i]??0),0);
+    });
+    const maxV = Math.max(...monthlyTotals,1);
+    if(charts.haMonthly) charts.haMonthly.destroy();
+    charts.haMonthly = new Chart(document.getElementById('haMonthlyChart'),{
+      type:'bar',
+      data:{
+        labels:FC_MONTHS,
+        datasets:[{
+          label:'純申込金額（チーム合計）',
+          data:monthlyTotals.map(v=>Math.round(v/10000)),
+          backgroundColor:monthlyTotals.map(v=>v===maxV?'rgba(245,166,35,0.85)':'rgba(245,166,35,0.45)'),
+          borderColor:'#f5a623',borderWidth:1,borderRadius:5
+        }]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        layout:{padding:{top:24}},
+        plugins:{
+          legend:{display:false},
+          tooltip:{callbacks:{label:c=>` ${fmt(c.raw*10000)}`}},
+          datalabels:{display:true,anchor:'end',align:'top',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',
+            formatter:v=>v>0?fmt(v*10000):null}
+        },
+        scales:{
+          x:{grid:{display:false}},
+          y:{ticks:{callback:v=>v+'万'},grid:{color:'rgba(226,230,239,.8)'}}
+        }
+      },
+      plugins:[ChartDataLabels]
+    });
+    document.getElementById('haMonthlyCard').style.display='';
+  }
 
   // 相関チャート（商談件数 × 申込月平均）
   if(!D) return;
