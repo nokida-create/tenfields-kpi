@@ -925,7 +925,7 @@ function renderMemberTable() {
   // 申込金額モード: FC_MONTHS × FC_HA.monthlyNet
   if(memberMetric==='ha'){
     if(!FC_MONTHS.length){thead.innerHTML='';tbody.innerHTML='';return;}
-    const fmtMan=v=>v!=null?(v>=10000000?(v/100000000).toFixed(1)+'億':Math.round(v/10000).toLocaleString()+'万'):'<span class="dim">—</span>';
+    const fmtMan=v=>{if(v==null)return'<span class="dim">—</span>';if(v===0)return'<span class="dim">—</span>';return v>=100000000?(v/100000000).toFixed(1)+'億':Math.round(v/10000).toLocaleString()+'万';};
     const allM=FC_JOIN_ORDER.filter(n=>FC_HA[n]);
     thead.innerHTML=`<tr><th>メンバー</th>${FC_MONTHS.map(m=>`<th colspan="2" style="text-align:center;border-left:1px solid var(--border)">${m}</th>`).join('')}</tr><tr><th></th>${FC_MONTHS.map(()=>'<th>純申込</th><th>前月比</th>').join('')}</tr>`;
     tbody.innerHTML='';
