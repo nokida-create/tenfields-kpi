@@ -406,9 +406,10 @@ tr:hover td{background:#f8f9ff}
 //  GAS ENDPOINT (デプロイ後にここにURLを設定)
 // ===============================================================
 const GAS_URL = '';  // 例: 'https://script.google.com/macros/s/XXXX/exec'
-const FC_HA_URL = 'https://script.google.com/macros/s/AKfycbwGKb9CmHAJtfnRUUz0eTAZ1F20gq0T-w-io5wYYiwHZ99FwuClkdkDikpL9-17wvIGdg/exec';
-let FC_HA = {}; // name -> {ha, avgHa, ma, avgNet, months, cancelRate}
+const FC_HA_URL = 'https://script.google.com/macros/s/AKfycbxbDQmtc9WE6VVO3MjDHXSvzYmLuHTBNPgCNSpBMNXAphKTl3HRNhtv605GU4EryBjGPw/exec';
+let FC_HA = {}; // name -> {ha, avgHa, ma, avgNet, months, cancelRate, monthlyNet}
 let FC_HA_TOTAL = {ha:0, net:0}; // 全員合計（除外メンバー含む）
+let FC_MONTHS = []; // ['2025/7', ..., '2026/6']
 
 // ===============================================================
 //  実データ（GAS未設定時のフォールバック）
@@ -495,9 +496,11 @@ async function loadFCData() {
     // スプレッドシートの値は万円単位なので×10000して円に変換
     const NAME_MAP = {'齋藤':'齊藤'};
     FC_HA_TOTAL = {ha:(j.total?.ha||0)*10000, net:(j.total?.net||0)*10000};
+    FC_MONTHS = j.months || [];
     (j.members||[]).forEach(m=>{
       const name = NAME_MAP[m.name] || m.name;
-      FC_HA[name] = {...m, name, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000};
+      const monthlyNet = (m.monthlyNet||[]).map(v=>v!=null?v*10000:null);
+      FC_HA[name] = {...m, name, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000, monthlyNet};
     });
     renderHASection();
   } catch(e) { console.warn('FC API取得失敗:', e); }
@@ -777,31 +780,56 @@ function renderMemberCards() {
   const ms=D.months;
   const fmtMan=v=>v>=100000000?(v/100000000).toFixed(1)+'億':v>=10000?Math.round(v/10000).toLocaleString()+'万':v.toLocaleString();
 
-  // 申込金額モード（FC_HAデータ使用）
+  // 申込金額モード（FC_HAデータ + 月別 monthlyNet 使用）
   if(memberMetric==='ha'){
-    document.getElementById('monthSel').style.display='none';
-    document.getElementById('memberRankTitle').textContent='純申込金額 累計ランキング';
+    // 月選択を申込用に切り替え（FC_MONTHSベース）
+    document.getElementById('monthSel').style.display='';
+    // curMonthがFC_MONTHSにない場合は最終月に合わせる
+    if(FC_MONTHS.length && !FC_MONTHS.includes(curMonth)){
+      curMonth=FC_MONTHS[FC_MONTHS.length-1];
+    }
+    const haMonthIdx=FC_MONTHS.indexOf(curMonth);
+
+    // 月選択ボタンをFC_MONTHSで再構築（1回だけ）
+    if(!document.querySelector('.msbtn[data-ha]')){
+      const sel=document.getElementById('monthSel'); sel.innerHTML='';
+      FC_MONTHS.forEach(m=>{
+        const b=document.createElement('button');
+        b.className='msbtn'+(m===curMonth?' active':'');
+        b.dataset.ha='1'; b.textContent=m;
+        b.onclick=()=>{curMonth=m;document.querySelectorAll('.msbtn').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderMemberCards();renderMemberTable();};
+        sel.appendChild(b);
+      });
+    }
+
+    document.getElementById('memberRankTitle').textContent=`純申込金額 月別ランキング`;
     document.getElementById('memberAvgTitle').textContent='純申込金額 月平均ランキング';
-    document.getElementById('memberMonthSub').textContent='';
+    document.getElementById('memberMonthSub').textContent=curMonth;
+
     const entries=Object.entries(FC_HA).filter(([n])=>isFC(n));
-    const sortedNet=[...entries].sort((a,b)=>b[1].net-a[1].net);
+    // 選択月の純申込でソート
+    const sortedMonth=[...entries]
+      .map(([n,hd])=>[n,hd,haMonthIdx>=0?(hd.monthlyNet?.[haMonthIdx]??0):0])
+      .sort((a,b)=>b[2]-a[2]);
     const sortedAvg=[...entries].sort((a,b)=>b[1].avgNet-a[1].avgNet);
 
     if(charts.memberRank) charts.memberRank.destroy();
     charts.memberRank=new Chart(document.getElementById('memberRankChart'),{
       type:'bar',
-      data:{labels:sortedNet.map(([n])=>n),datasets:[{label:'純申込累計',data:sortedNet.map(([,v])=>Math.round(v.net/10000)),
-        backgroundColor:sortedNet.map((_,i)=>i===0?'rgba(245,166,35,0.85)':'rgba(245,166,35,0.4)'),borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
+      data:{labels:sortedMonth.map(([n])=>n),datasets:[{label:'純申込（'+curMonth+'）',
+        data:sortedMonth.map(([,,v])=>Math.round(v/10000)),
+        backgroundColor:sortedMonth.map((_,i)=>i===0?'rgba(245,166,35,0.85)':'rgba(245,166,35,0.4)'),borderColor:'#f5a623',borderWidth:1,borderRadius:5}]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:60}},
         plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtMan(c.raw*10000)}`}},
-          datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?fmtMan(v*10000):null}},
+          datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v!==0?fmtMan(v*10000):null}},
         scales:{x:{ticks:{callback:v=>v+'万'}},y:{grid:{display:false}}}}
     });
 
     if(charts.memberAvg) charts.memberAvg.destroy();
     charts.memberAvg=new Chart(document.getElementById('memberAvgChart'),{
       type:'bar',
-      data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均純申込',data:sortedAvg.map(([,v])=>Math.round(v.avgNet/10000)),
+      data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均純申込',
+        data:sortedAvg.map(([,v])=>Math.round(v.avgNet/10000)),
         backgroundColor:'rgba(79,110,247,.5)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
       options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:60}},
         plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtMan(c.raw*10000)}`}},
@@ -809,21 +837,21 @@ function renderMemberCards() {
         scales:{x:{ticks:{callback:v=>v+'万'}},y:{grid:{display:false}}}}
     });
 
+    // 詳細テーブル（選択月）
     const medals=['🥇','🥈','🥉'];
     const tb=document.getElementById('memberRankTbody');tb.innerHTML='';
-    sortedNet.forEach(([name,hd],idx)=>{
+    sortedMonth.forEach(([name,hd,curVal],idx)=>{
+      const prevVal=haMonthIdx>0?(hd.monthlyNet?.[haMonthIdx-1]??null):null;
+      const p=curVal!=null&&prevVal!=null&&prevVal!==0?(curVal-prevVal)/Math.abs(prevVal)*100:null;
       tb.innerHTML+=`<tr>
         <td class="${idx<3?'hi':''}">${medals[idx]??`${idx+1}位`}</td>
         <td><strong>${name}</strong></td>
-        <td class="hi" style="color:#f5a623">${fmtMan(hd.net)}</td>
-        <td>—</td>
-        <td class="dim">—</td>
+        <td class="hi" style="color:#f5a623">${fmtMan(curVal)}</td>
+        <td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'—'}</td>
+        <td class="dim">${prevVal!=null?fmtMan(prevVal):'—'}</td>
         <td>${fmtMan(hd.avgNet)}</td>
       </tr>`;
     });
-
-    document.getElementById('mtHead').innerHTML='';
-    document.getElementById('mtBody').innerHTML=`<tr><td colspan="99" style="text-align:center;color:var(--muted);padding:20px">申込金額の月別内訳データは準備中です</td></tr>`;
     return;
   }
 
@@ -891,11 +919,36 @@ function renderMemberCards() {
 }
 
 function renderMemberTable() {
+  const thead=document.getElementById('mtHead');
+  const tbody=document.getElementById('mtBody');
+
+  // 申込金額モード: FC_MONTHS × FC_HA.monthlyNet
+  if(memberMetric==='ha'){
+    if(!FC_MONTHS.length){thead.innerHTML='';tbody.innerHTML='';return;}
+    const fmtMan=v=>v!=null?(v>=10000000?(v/100000000).toFixed(1)+'億':Math.round(v/10000).toLocaleString()+'万'):'<span class="dim">—</span>';
+    const allM=FC_JOIN_ORDER.filter(n=>FC_HA[n]);
+    thead.innerHTML=`<tr><th>メンバー</th>${FC_MONTHS.map(m=>`<th colspan="2" style="text-align:center;border-left:1px solid var(--border)">${m}</th>`).join('')}</tr><tr><th></th>${FC_MONTHS.map(()=>'<th>純申込</th><th>前月比</th>').join('')}</tr>`;
+    tbody.innerHTML='';
+    allM.forEach(name=>{
+      const hd=FC_HA[name]; if(!hd) return;
+      let row=`<tr><td>${name}</td>`;
+      FC_MONTHS.forEach((_,i)=>{
+        const v=hd.monthlyNet?.[i]??null;
+        const pv=i>0?hd.monthlyNet?.[i-1]??null:null;
+        const p=v!=null&&pv!=null&&pv!==0?(v-pv)/Math.abs(pv)*100:null;
+        row+=`<td style="border-left:1px solid var(--border)">${fmtMan(v)}</td>`;
+        row+=`<td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'<span class="dim">—</span>'}</td>`;
+      });
+      tbody.innerHTML+=row+'</tr>';
+    });
+    return;
+  }
+
+  // 電話・商談モード
   const ms=D.months;
   const allM=[...new Set(ms.flatMap(m=>Object.keys(m.members)))].filter(isFC).sort((a,b)=>joinOrder(a)-joinOrder(b));
-  const thead=document.getElementById('mtHead');
   thead.innerHTML=`<tr><th>メンバー</th>${ms.map(m=>`<th colspan="2" style="text-align:center;border-left:1px solid var(--border)">${m.month}</th>`).join('')}</tr><tr><th></th>${ms.map(()=>'<th>値</th><th>前月比</th>').join('')}</tr>`;
-  const tbody=document.getElementById('mtBody');tbody.innerHTML='';
+  tbody.innerHTML='';
   allM.forEach(name=>{
     let row=`<tr><td>${name}</td>`;
     ms.forEach((m,i)=>{
