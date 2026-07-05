@@ -321,7 +321,7 @@ tr:hover td{background:#f8f9ff}
       <div class="md-krow">
         <div class="md-kcard"><div class="klabel">電話件数（今月）</div><div class="kval" id="dd-tel" style="color:var(--purple)">—</div><div class="kvsub" id="dd-tel-chg">—</div></div>
         <div class="md-kcard"><div class="klabel">総商談数（今月）</div><div class="kval" id="dd-mtg" style="color:var(--green)">—</div><div class="kvsub" id="dd-mtg-chg">—</div></div>
-        <div class="md-kcard" id="dd-ha-card" style="border-left:4px solid #f5a623;display:none"><div class="klabel">純申込金額（累計）</div><div class="kval" id="dd-ha" style="color:#f5a623">—</div><div class="kvsub" id="dd-ha-sub">—</div></div>
+        <div class="md-kcard" id="dd-ha-card" style="border-left:4px solid #f5a623;display:none"><div class="klabel">💰 純申込金額（今月）</div><div class="kval" id="dd-ha" style="color:#f5a623">—</div><div class="kvsub" id="dd-ha-sub">—</div></div>
       </div>
       <div class="dd-conv-row">
         <div class="dd-conv-card">
@@ -347,7 +347,7 @@ tr:hover td{background:#f8f9ff}
       </div>
       <div class="twrap">
         <div class="ctitle" style="margin-bottom:13px">月別詳細</div>
-        <table><thead><tr><th>月</th><th>電話件数</th><th>前月比</th><th>総商談数</th><th>前月比</th><th>チーム内順位（電話）</th></tr></thead>
+        <table><thead><tr><th>月</th><th>電話件数</th><th>前月比</th><th>総商談数</th><th>前月比</th><th>純申込(万)</th><th>前月比</th><th>チーム内順位（電話）</th></tr></thead>
         <tbody id="detailTbody"></tbody></table>
       </div>
     </div>
@@ -637,8 +637,23 @@ function updateDetailHACard(name) {
   if(!hd) return;
   const card = document.getElementById('dd-ha-card');
   const fmt = v => v>=100000000?(v/100000000).toFixed(1)+'億円':v>=10000?Math.round(v/10000).toLocaleString()+'万円':v.toLocaleString()+'円';
-  document.getElementById('dd-ha').textContent = fmt(hd.net);
-  document.getElementById('dd-ha-sub').textContent = `月平均 ${fmt(hd.avgNet)} ／ 在籍${hd.months}ヶ月`;
+  // 今月の月次純申込
+  const ms = D ? D.months : [];
+  const lastMonth = ms.length ? ms[ms.length-1].month : null;
+  const prevMonth = ms.length>1 ? ms[ms.length-2].month : null;
+  const lastIdx = lastMonth ? FC_MONTHS.indexOf(lastMonth) : -1;
+  const prevIdx = prevMonth ? FC_MONTHS.indexOf(prevMonth) : -1;
+  const nowNet  = lastIdx>=0 ? (hd.monthlyNet?.[lastIdx] ?? null) : null;
+  const prevNet = prevIdx>=0 ? (hd.monthlyNet?.[prevIdx] ?? null) : null;
+  document.getElementById('dd-ha').textContent = nowNet!=null ? fmt(nowNet) : '—';
+  let sub = '';
+  if(nowNet!=null && prevNet!=null && prevNet!==0){
+    const pct = (nowNet-prevNet)/Math.abs(prevNet)*100;
+    sub = `<span class="${pct>=0?'hi':'lo'}">${pct>=0?'▲':'▼'}${Math.abs(pct).toFixed(1)}%</span> vs 先月`;
+  } else {
+    sub = `累計 ${fmt(hd.net)}`;
+  }
+  document.getElementById('dd-ha-sub').innerHTML = sub;
   card.style.display = '';
 }
 
@@ -1219,6 +1234,13 @@ function renderDetailContent() {
   const telArr = ms.map(m=>m.members[detailMember]?.tel??null);
   const mtgArr = ms.map(m=>m.members[detailMember]?.mtg??null);
   const actArr = ms.map(m=>m.members[detailMember]?.action??null);
+  // 個人月別純申込（FC_HAデータがある場合のみ、万円単位）
+  const hd = FC_HA[detailMember];
+  const haArr = hd && FC_MONTHS.length ? ms.map(m=>{
+    const idx = FC_MONTHS.indexOf(m.month);
+    const v = idx>=0 ? hd.monthlyNet?.[idx] : null;
+    return v!=null ? Math.round(v/10000) : null;
+  }) : null;
 
   // KPI cards
   const last = ms[ms.length-1], prev = ms[ms.length-2];
@@ -1265,20 +1287,26 @@ function renderDetailContent() {
 
   // Trend chart
   if(charts.detailTrend) charts.detailTrend.destroy();
+  const detailTrendDatasets = [
+    {type:'bar', label:'電話',data:telArr,backgroundColor:'rgba(167,139,250,.5)',borderColor:'#a78bfa',borderWidth:0,borderRadius:4,yAxisID:'y',order:3,
+      datalabels:{display:true,anchor:'end',align:'top',color:'#7c5cbf',font:{size:10,weight:'bold'},formatter:v=>v!=null?v.toLocaleString():null}},
+    {type:'line',label:'商談',data:mtgArr,borderColor:'#00c9a7',backgroundColor:'rgba(0,201,167,.08)',tension:.4,pointRadius:5,pointBackgroundColor:'#00c9a7',borderWidth:2,fill:false,yAxisID:'y2',order:2,
+      datalabels:{display:true,anchor:'end',align:'top',color:'#00c9a7',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
+  ];
+  if(haArr) detailTrendDatasets.push({
+    type:'line',label:'純申込(万)',data:haArr,borderColor:'#f5a623',backgroundColor:'rgba(245,166,35,.08)',tension:.4,pointRadius:5,pointBackgroundColor:'#f5a623',borderWidth:2,fill:false,yAxisID:'y3',order:1,
+    datalabels:{display:true,anchor:'end',align:'top',color:'#f5a623',font:{size:10,weight:'bold'},formatter:v=>v!=null&&v!==0?v.toLocaleString()+'万':null}
+  });
   charts.detailTrend = new Chart(document.getElementById('detailTrendChart'),{
     type:'bar',
-    data:{labels,datasets:[
-      {type:'bar', label:'電話',data:telArr,backgroundColor:'rgba(167,139,250,.5)',borderColor:'#a78bfa',borderWidth:0,borderRadius:4,yAxisID:'y',order:2,
-        datalabels:{display:true,anchor:'end',align:'top',color:'#7c5cbf',font:{size:10,weight:'bold'},formatter:v=>v!=null?v.toLocaleString():null}},
-      {type:'line',label:'商談',data:mtgArr,borderColor:'#00c9a7',backgroundColor:'rgba(0,201,167,.08)',tension:.4,pointRadius:5,pointBackgroundColor:'#00c9a7',borderWidth:2,fill:false,yAxisID:'y2',order:1,
-        datalabels:{display:true,anchor:'end',align:'top',color:'#00c9a7',font:{size:10,weight:'bold'},formatter:v=>v!=null?v:null}},
-    ]},
+    data:{labels,datasets:detailTrendDatasets},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:'#6b7594',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{}},
       scales:{
         x:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594',maxRotation:45}},
         y:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594'},position:'left',title:{display:true,text:'電話件数',color:'#a78bfa',font:{size:11}}},
         y2:{grid:{display:false},ticks:{color:'#00c9a7'},position:'right',title:{display:true,text:'商談件数',color:'#00c9a7',font:{size:11}}},
+        y3:{grid:{display:false},ticks:{color:'#f5a623',callback:v=>v>=10000?(v/10000).toFixed(1)+'億':v.toLocaleString()+'万'},position:'right',title:{display:haArr?true:false,text:'純申込(万円)',color:'#f5a623',font:{size:11}},display:haArr?true:false},
       }
     }
   });
@@ -1323,12 +1351,20 @@ function renderDetailContent() {
     const ranked=Object.entries(m.members).filter(([n])=>isFC(n)).sort((a,b)=>(b[1].tel??0)-(a[1].tel??0));
     const rank=ranked.findIndex(([n])=>n===detailMember)+1;
     const rankStr=rank>0?`${rank}/${ranked.length}位`:'—';
+    const haIdx = FC_MONTHS.indexOf(m.month);
+    const haVal = haIdx>=0 ? (hd?.monthlyNet?.[haIdx] ?? null) : null;
+    const haMan = haVal!=null ? Math.round(haVal/10000) : null;
+    const prevHaIdx = i>0 ? FC_MONTHS.indexOf(ms[i-1].month) : -1;
+    const prevHaVal = prevHaIdx>=0 ? (hd?.monthlyNet?.[prevHaIdx] ?? null) : null;
+    const prevHaMan = prevHaVal!=null ? Math.round(prevHaVal/10000) : null;
     tb.innerHTML+=`<tr>
       <td>${m.month}</td>
       <td class="${v?.tel?'hi':''}">${v?.tel!=null?v.tel.toLocaleString():'<span class="dim">—</span>'}</td>
       <td>${fmtChg(v?.tel,pv?.tel)}</td>
       <td>${v?.mtg!=null?v.mtg.toLocaleString():'<span class="dim">—</span>'}</td>
       <td>${fmtChg(v?.mtg,pv?.mtg)}</td>
+      <td style="color:#f5a623;font-weight:600">${haMan!=null?haMan.toLocaleString()+'万':'<span class="dim">—</span>'}</td>
+      <td>${fmtChg(haMan,prevHaMan)}</td>
       <td class="dim">${rankStr}</td>
     </tr>`;
   });
