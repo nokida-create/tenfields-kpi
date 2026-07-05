@@ -601,7 +601,6 @@ function renderHASection() {
 
   // 相関チャート（商談件数 × 申込月平均）
   if(!D) return;
-  const ms = D.months;
   const scatterData = [];
   Object.entries(FC_HA).filter(([n])=>isFC(n)).forEach(([name,hd])=>{
     const avgNetM = hd.avgNet>0 ? hd.avgNet : 0;
