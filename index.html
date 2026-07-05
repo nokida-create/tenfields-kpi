@@ -732,13 +732,10 @@ function renderOverview(opts={}) {
   const haD  = opts.haMonthly || null; // 万円 or null
 
   // Trend (combo: 商談=bar, 電話=line, 申込=line on y3)
-  // 申込ラベル：最初・最大・最後・前月だけ表示（混雑を避ける）
-  const haLabelFmt = haD ? (v,ctx)=>{
+  // 申込ラベル：全月表示
+  const haLabelFmt = haD ? (v)=>{
     if(v==null||v===0) return null;
-    const arr=haD.filter(x=>x!=null), peak=Math.max(...arr);
-    const i=ctx.dataIndex, n=haD.length;
-    if(i===0||i===n-1||v===peak) return v>=10000?(v/10000).toFixed(1)+'億':v.toLocaleString()+'万';
-    return null;
+    return v>=10000?(v/10000).toFixed(1)+'億':v.toLocaleString()+'万';
   } : null;
 
   const trendDatasets = [
