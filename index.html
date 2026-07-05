@@ -171,34 +171,23 @@ tr:hover td{background:#f8f9ff}
 <div id="view-overview">
   <div id="gasBanner" class="gas-banner" style="display:none"></div>
 
-  <div class="krow" style="grid-template-columns:repeat(2,1fr)">
+  <div class="krow" style="grid-template-columns:repeat(3,1fr)">
     <div class="kcard ct"><div class="klabel">電話件数 / 1人当たり（今月）</div><div class="kval" id="kv-tel">—</div><div class="ksub"><span class="badge up" id="kc-tel">—</span> &ensp;12ヶ月平均: <strong id="ka-tel">—</strong></div></div>
     <div class="kcard cm"><div class="klabel">総商談数 / 1人当たり（今月）</div><div class="kval" id="kv-mtg">—</div><div class="ksub"><span class="badge up" id="kc-mtg">—</span> &ensp;12ヶ月平均: <strong id="ka-mtg">—</strong></div></div>
+    <div class="kcard" style="border-top:4px solid #f5a623">
+      <div class="klabel">💰 純申込金額 / チーム合計（今月）</div>
+      <div class="kval" id="ha-month" style="color:#f5a623">—</div>
+      <div class="ksub" id="ha-month-sub">読み込み中...</div>
+    </div>
   </div>
 
-  <!-- 申込金額 KPIカード（APIロード後に値が入る） -->
-  <div class="krow" id="haCards" style="grid-template-columns:repeat(4,1fr);margin-bottom:18px">
-    <div class="kcard" style="border-top:4px solid #f5a623">
-      <div class="klabel">💰 純申込金額（今月）</div>
-      <div class="kval" id="ha-month" style="color:#f5a623;font-size:1.8rem">—</div>
-      <div class="ksub" id="ha-month-sub" style="font-size:.72rem">読み込み中...</div>
-    </div>
-    <div class="kcard" style="border-top:4px solid #e8a020">
-      <div class="klabel">💰 純申込金額 累計（全員合計）</div>
-      <div class="kval" id="ha-total" style="color:#e8a020;font-size:1.8rem">—</div>
-      <div class="ksub" id="ha-total-sub" style="font-size:.72rem">読み込み中...</div>
-    </div>
-    <div class="kcard" style="border-top:4px solid #4f6ef7">
-      <div class="klabel">💰 純申込金額 月平均（チーム計）</div>
-      <div class="kval" id="ha-avg" style="color:#4f6ef7;font-size:1.8rem">—</div>
-      <div class="ksub" id="ha-avg-sub" style="font-size:.72rem">読み込み中...</div>
-    </div>
-    <div class="kcard" style="border-top:4px solid #0db980">
-      <div class="klabel">🏠 本契約金額 累計（全員合計）</div>
-      <div class="kval" id="ma-total" style="color:#0db980;font-size:1.8rem">—</div>
-      <div class="ksub" id="ma-total-sub" style="font-size:.72rem">読み込み中...</div>
-    </div>
-  </div>
+  <!-- 累計参照用（非表示・JS用） -->
+  <span id="ha-total" style="display:none"></span>
+  <span id="ha-total-sub" style="display:none"></span>
+  <span id="ha-avg" style="display:none"></span>
+  <span id="ha-avg-sub" style="display:none"></span>
+  <span id="ma-total" style="display:none"></span>
+  <span id="ma-total-sub" style="display:none"></span>
 
   <div class="cgrid">
     <div class="ccard">
