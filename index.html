@@ -1300,7 +1300,8 @@ function renderDetailContent() {
   charts.detailTrend = new Chart(document.getElementById('detailTrendChart'),{
     type:'bar',
     data:{labels,datasets:detailTrendDatasets},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    options:{responsive:true,maintainAspectRatio:false,clip:false,interaction:{mode:'index',intersect:false},
+      layout:{padding:{top:20,right:haArr?60:40,left:10,bottom:10}},
       plugins:{legend:{labels:{color:'#6b7594',boxWidth:12}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},datalabels:{}},
       scales:{
         x:{grid:{color:'rgba(226,230,239,.6)'},ticks:{color:'#6b7594',maxRotation:45}},
