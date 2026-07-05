@@ -430,10 +430,11 @@ tr:hover td{background:#f8f9ff}
 //  GAS ENDPOINT (デプロイ後にここにURLを設定)
 // ===============================================================
 const GAS_URL = '';  // 例: 'https://script.google.com/macros/s/XXXX/exec'
-const FC_HA_URL = 'https://script.google.com/macros/s/AKfycbxbDQmtc9WE6VVO3MjDHXSvzYmLuHTBNPgCNSpBMNXAphKTl3HRNhtv605GU4EryBjGPw/exec';
+const FC_HA_URL = 'https://script.google.com/macros/s/AKfycbyU9g7Rtr41Z66Kj0yMCQx_UDyoRpLPnjTL_a_epo_Rg51cy-OuIYI_DBOFLLL6D4ceOA/exec';
 let FC_HA = {}; // name -> {ha, avgHa, ma, avgNet, months, cancelRate, monthlyNet}
 let FC_HA_TOTAL = {ha:0, net:0}; // 全員合計（除外メンバー含む）
 let FC_MONTHS = []; // ['2025/7', ..., '2026/6']
+let FC_TOTAL_MONTHLY = []; // 全員合計の月次純申込（万円）除外メンバー込み
 
 // ===============================================================
 //  実データ（GAS未設定時のフォールバック）
@@ -521,6 +522,7 @@ async function loadFCData() {
     const NAME_MAP = {'齋藤':'齊藤'};
     FC_HA_TOTAL = {ha:(j.total?.ha||0)*10000, net:(j.total?.net||0)*10000};
     FC_MONTHS = j.months || [];
+    FC_TOTAL_MONTHLY = (j.totalMonthly||[]).map(v=>Math.round(v/10000)); // 万円単位で保存
     (j.members||[]).forEach(m=>{
       const name = NAME_MAP[m.name] || m.name;
       const monthlyNet = (m.monthlyNet||[]).map(v=>v!=null?v*10000:null);
@@ -535,13 +537,10 @@ function renderHASection() {
 
   const fmt = v => v>=100000000 ? (v/100000000).toFixed(1)+'億' : v>=10000 ? Math.round(v/10000).toLocaleString()+'万' : v.toLocaleString()+'円';
 
-  // D.months と FC_MONTHS を月ラベルで紐付けた月次合計（万円単位）
-  const haMonthly = D ? D.months.map(m=>{
+  // D.months と FC_MONTHS を月ラベルで紐付けた月次合計（全員込み・万円単位）
+  const haMonthly = D && FC_TOTAL_MONTHLY.length ? D.months.map(m=>{
     const idx = FC_MONTHS.indexOf(m.month);
-    if(idx<0) return null;
-    const total = Object.values(FC_HA).filter(hd=>isFC(hd.name))
-      .reduce((s,hd)=>s+(hd.monthlyNet?.[idx]??0),0);
-    return Math.round(total/10000); // 万円
+    return idx >= 0 ? FC_TOTAL_MONTHLY[idx] : null;
   }) : null;
 
   // 今月・先月の純申込
@@ -570,15 +569,15 @@ function renderHASection() {
 
   // 月次推移チャート（独立パネル）
   if(FC_MONTHS.length){
-    const monthlyTotals = FC_MONTHS.map((_,i)=>
-      Object.values(FC_HA).filter(m=>isFC(m.name)).reduce((s,m)=>s+(m.monthlyNet?.[i]??0),0));
+    const monthlyTotals = FC_TOTAL_MONTHLY.length ? FC_TOTAL_MONTHLY : FC_MONTHS.map((_,i)=>
+      Object.values(FC_HA).filter(m=>isFC(m.name)).reduce((s,m)=>s+Math.round((m.monthlyNet?.[i]??0)/10000),0));
     const maxV = Math.max(...monthlyTotals,1);
     if(charts.haMonthly) charts.haMonthly.destroy();
     charts.haMonthly = new Chart(document.getElementById('haMonthlyChart'),{
       type:'bar',
       data:{labels:FC_MONTHS,datasets:[{
-        label:'純申込金額（チーム合計）',
-        data:monthlyTotals.map(v=>Math.round(v/10000)),
+        label:'純申込金額（全員合計）',
+        data:monthlyTotals,
         backgroundColor:monthlyTotals.map(v=>v===maxV?'rgba(245,166,35,0.85)':'rgba(245,166,35,0.45)'),
         borderColor:'#f5a623',borderWidth:1,borderRadius:5
       }]},
@@ -586,7 +585,8 @@ function renderHASection() {
         plugins:{legend:{display:false},
           tooltip:{callbacks:{label:c=>` ${fmt(c.raw*10000)}`}},
           datalabels:{display:true,anchor:'end',align:'top',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',
-            formatter:v=>v>0?fmt(v*10000):null}},
+            formatter:v=>v>0?fmt(v*10000):null},
+          title:{display:true,text:'純申込金額 月次推移（全員合計・除外メンバー込み）',font:{size:12,weight:'bold'},color:'#1a1f36',padding:{bottom:8}}},
         scales:{x:{grid:{display:false}},y:{ticks:{callback:v=>v+'万'},grid:{color:'rgba(226,230,239,.8)'}}}},
       plugins:[ChartDataLabels]
     });
