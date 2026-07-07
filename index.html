@@ -787,14 +787,16 @@ function renderOverview(opts={}) {
   const ms = opts.fyDMonths
     ? opts.fyDMonths.map((d,i)=>d||{month:opts.fyMonths[i],members:{},team_total:{}})
     : D.months;
-  const allMs = D.months; // KPIカードは常に全期間最新から
-  const L = allMs[allMs.length-1], P = allMs[allMs.length-2];
-  const tels    = allMs.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
-  const mtgs    = allMs.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
-  const actions = allMs.map(m=>fcAvg(m,'action')).filter(v=>v!=null);
-  setCard('tel', fcAvg(L,'tel'), fcAvg(P,'tel'), avg(tels));
-  setCard('mtg', fcAvg(L,'mtg'), fcAvg(P,'mtg'), avg(mtgs));
-  setCard('act', fcAvg(L,'action'), fcAvg(P,'action'), avg(actions));
+  // KPIカードもFY内最新月を使う
+  const validMs = ms.filter(m=>fcCount(m,'tel')>0||fcCount(m,'mtg')>0);
+  const L = validMs.length ? validMs[validMs.length-1] : ms[ms.length-1];
+  const P = validMs.length > 1 ? validMs[validMs.length-2] : null;
+  const tels    = validMs.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
+  const mtgs    = validMs.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
+  const actions = validMs.map(m=>fcAvg(m,'action')).filter(v=>v!=null);
+  setCard('tel', fcAvg(L,'tel'), P?fcAvg(P,'tel'):null, avg(tels));
+  setCard('mtg', fcAvg(L,'mtg'), P?fcAvg(P,'mtg'):null, avg(mtgs));
+  setCard('act', fcAvg(L,'action'), P?fcAvg(P,'action'):null, avg(actions));
 
   const labels = (opts.fyMonths||ms.map(m=>m.month)).map((mStr,i)=>{
     const d = ms[i];
@@ -851,10 +853,11 @@ function renderOverview(opts={}) {
       }}
   });
 
-  // Bar chart (今月 vs 先月) — 電話/商談のみ（スケール差があるため申込は別表示）
-  document.getElementById('barSub').textContent = `${P.month} vs ${L.month}`;
+  // Bar chart (今月 vs 先月) — 電話/商談のみ
   if(charts.bar) charts.bar.destroy();
-  charts.bar = new Chart(document.getElementById('barChart'), {
+  if(P && L && fcAvg(L,'tel')!=null) {
+    document.getElementById('barSub').textContent = `${P.month} vs ${L.month}`;
+    charts.bar = new Chart(document.getElementById('barChart'), {
     type:'bar', data:{
       labels:['電話件数','総商談数'],
       datasets:[
@@ -866,6 +869,9 @@ function renderOverview(opts={}) {
         datalabels:{display:true,anchor:'end',align:'top',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v!=null?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
       scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(0)+'k':v}}}}
   });
+  } else {
+    document.getElementById('barSub').textContent = 'データなし';
+  }
 
   // Table
   const fmtHa = v=>v==null?'—':v>=10000?(v/10000).toFixed(1)+'億':v.toLocaleString()+'万';
