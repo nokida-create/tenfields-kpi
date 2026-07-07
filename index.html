@@ -1245,7 +1245,12 @@ function getAllMonthLabels() {
 }
 let globalFY = null; // null → getActiveFY()
 
-function getGlobalFY() { return globalFY || getActiveFY(); }
+function getGlobalFY() {
+  if(globalFY !== null) return globalFY;
+  // D.months の最新月FY をデフォルトにする（KPIデータが存在するFY）
+  if(D?.months?.length) return getFY(D.months[D.months.length-1].month);
+  return getActiveFY();
+}
 
 function updateFyBar() {
   const fy = getGlobalFY();
