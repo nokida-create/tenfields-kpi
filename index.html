@@ -749,10 +749,11 @@ function renderOverviewFY(haMonthly) {
   // FYスイッチャーUI
   const switchEl = document.getElementById('overviewFySwitch');
   const labelEl  = document.getElementById('overviewFyLabel');
-  const prevFY = fy - 1;
+  const activeFY = getActiveFY();
+  const prevFY   = activeFY - 1;
   if(switchEl) switchEl.innerHTML = `
     <button class="fy-btn prev ${fy===prevFY?'active':''}" onclick="setOverviewFY(${prevFY})">◀ ${prevFY}年度</button>
-    <button class="fy-btn ${fy!==prevFY?'active':''}" onclick="setOverviewFY(${fy!==prevFY?fy:prevFY})">今期 ${fy}年度</button>
+    <button class="fy-btn ${fy===activeFY?'active':''}" onclick="setOverviewFY(${activeFY})">今期 ${activeFY}年度</button>
   `;
   if(labelEl) labelEl.textContent = `${fy}/7〜${fy+1}/6`;
 
@@ -1325,11 +1326,12 @@ function renderDetailMonthTabs() {
   const allMonths  = getAllMonthLabels();
   const latestMonth = allMonths[allMonths.length-1];
   const fyMonths   = allMonths.filter(m => getFY(m) === fy);
-  const prevFY = fy - 1;
+  const activeFY2 = getActiveFY();
+  const prevFY    = activeFY2 - 1;
   // FYスイッチャーUI
   if(switchEl) switchEl.innerHTML = `
     <button class="fy-btn prev ${fy===prevFY?'active':''}" onclick="setDetailFY(${prevFY})">◀ ${prevFY}年度</button>
-    <button class="fy-btn ${fy!==prevFY?'active':''}" onclick="setDetailFY(${fy !== prevFY ? fy : fy+1})">今期 ${fy !== prevFY ? fy : fy+1}年度</button>
+    <button class="fy-btn ${fy===activeFY2?'active':''}" onclick="setDetailFY(${activeFY2})">今期 ${activeFY2}年度</button>
   `;
   // 現在の選択月が今のFY内にあるか確認
   const curMonth = detailMonthIdx >= 0 && detailMonthIdx < allMonths.length
@@ -1351,12 +1353,8 @@ function renderDetailMonthTabs() {
 
 function setDetailFY(fy) {
   detailFY = fy;
-  renderDetailMonthTabs();
-  // 選択月でカード更新
-  if(detailMonthIdx >= 0) {
-    const all = getAllMonthLabels();
-    if(detailMonthIdx < all.length) switchDetailMonth(detailMonthIdx);
-  }
+  detailMonthIdx = -1; // FY切替時は最新月にリセット
+  renderDetailContent(); // トレンドグラフ含め全再描画
 }
 
 function switchDetailMonth(idx) {
