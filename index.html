@@ -787,10 +787,21 @@ function renderOverview(opts={}) {
   const ms = opts.fyDMonths
     ? opts.fyDMonths.map((d,i)=>d||{month:opts.fyMonths[i],members:{},team_total:{}})
     : D.months;
+
+  // ms が空 = 選択FYにKPIデータなし → チャートをクリアしてメッセージ表示
+  if(!ms.length) {
+    ['trend','bar'].forEach(k=>{ if(charts[k]){charts[k].destroy();charts[k]=null;} });
+    document.getElementById('barSub').textContent='データなし';
+    const tb=document.getElementById('sumTbody');
+    if(tb) tb.innerHTML=`<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--muted)">今期（${getGlobalFY()}年度）のKPIデータはまだありません<br><small>7月以降の電話・商談データが入力されると表示されます</small></td></tr>`;
+    return;
+  }
+
   // KPIカードもFY内最新月を使う
   const validMs = ms.filter(m=>fcCount(m,'tel')>0||fcCount(m,'mtg')>0);
   const L = validMs.length ? validMs[validMs.length-1] : ms[ms.length-1];
   const P = validMs.length > 1 ? validMs[validMs.length-2] : null;
+  if(!L) return;
   const tels    = validMs.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
   const mtgs    = validMs.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
   const actions = validMs.map(m=>fcAvg(m,'action')).filter(v=>v!=null);
