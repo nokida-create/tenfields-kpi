@@ -126,15 +126,26 @@ function getMonthKpi(month, ssId) {
   }
 
   // KPI行を探してパース
+  // 注意: シート下部に列配置の異なる重複集計表があるため、
+  //  - 各KPIは最初にマッチした行のみ採用（先勝ち）
+  //  - ヘッダー直後の最初の表が終わる（全セル空行）時点で走査終了
+  //  - "電話" は「電話に対してのアポ率」を除外するため完全一致のみ
   const kpiData = { tel: {}, mtg: {}, action: {} };
   let teamTotal = { tel: null, mtg: null, action: null };
+  const captured = new Set();
 
   for (let i = headerRowIdx + 1; i < data.length; i++) {
     const row     = data[i];
     const rowLabel = String(row[0]).trim();
 
+    if (captured.size === Object.keys(KPI_KEYS).length) break;
+    if (row.every(c => String(c).trim() === "")) break;
+
     for (const [key, keyword] of Object.entries(KPI_KEYS)) {
       if (rowLabel.includes(keyword)) {
+        if (captured.has(key)) break;
+        if (key === "tel" && rowLabel !== "電話") break;
+        captured.add(key);
         // 個人別
         for (const [name, ci] of Object.entries(memberIdx)) {
           const val = toNum(row[ci]);
