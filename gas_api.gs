@@ -1,24 +1,44 @@
 // ============================================================
 //  営業部 KPI ダッシュボード - GAS APIサーバー
 //  doGet() でJSON返却 → HTMLからfetchして使う
+//
+//  【自動スキャン方式】
+//  KPI_FOLDER_ID のフォルダを毎回スキャンし、
+//  "YYYY/M営業KPI管理" という名前のスプレッドシートを自動検出。
+//  翌月シートがフォルダに追加されるだけで自動的に反映される。
 // ============================================================
 
-// 月別スプレッドシートID
-const SHEET_MAP = [
-  { month: "2025/7",  id: "1QtyPCx9SMnaVziF27iivfM6xbvHxphaTtoFXhBGttMU" },
-  { month: "2025/8",  id: "1pDWvhD6A_kSF7ityfsBxPmE0B4_73vxHdtlbVIxhKBI" },
-  { month: "2025/9",  id: "1GEjPfngTbhDwgzF8-PHqlwj9zkV2ePOvKhOeCCDncxA" },
-  { month: "2025/10", id: "1-CxUfcnDJPGln3wqABmwANSoU27-s5ra0Apph9jgPZg" },
-  { month: "2025/11", id: "1FbEbt9SXjZ4S9d-bxz3LsGKsT2q1FXBaTdCBk0vS7SY" },
-  { month: "2025/12", id: "1b4VwYcmciVp0zbAQUfEgdtXjG2qVE-RkWDzKCSSvqwQ" },
-  { month: "2026/1",  id: "1KeV6YHmmY3AsfPNohLAeXyCA1nBnmYQhPmnA9rdL4eY" },
-  { month: "2026/2",  id: "1iK-y2RoPzAfF4idZ5B11_6WcfVjCw7kBqBwhPHP6UZQ" },
-  { month: "2026/3",  id: "1mUjwX0S-D82FhxJpEQi-l7R3299l4WwtzyOldMfOIh8" },
-  { month: "2026/4",  id: "1vvZc4ibSm-Fna0--HeKSu1N8TgxA5Um7pr00FylBLu8" },
-  { month: "2026/5",  id: "1z9_dsgX9c51gTzfr3cOxfmrcm8mx2NcApc-_PXFxCwY" },
-  { month: "2026/6",  id: "18WNsKnP87f1k9fPPLyO_YXXKNfxFLWZLBBk-sBzgs0k" },
-  { month: "2026/7",  id: "1nX_tVBkr6OACnDeChX7Bp-VJGV0foWL9ssZMKme7mlA" },
-];
+// KPI月次スプレッドシートが入っているフォルダID
+const KPI_FOLDER_ID = '1lzAuqoQfAlcUPbTfxVrIatwimcONQpcH';
+
+// ============================================================
+//  フォルダをスキャンしてSHEET_MAPを動的生成
+// ============================================================
+function buildSheetMap() {
+  const folder = DriveApp.getFolderById(KPI_FOLDER_ID);
+  const files = folder.getFilesByType(MimeType.GOOGLE_SHEETS);
+  const map = [];
+
+  while (files.hasNext()) {
+    const file = files.next();
+    const name = file.getName().trim();
+    // "2025/7営業KPI管理" や "2026/10営業KPI管理" にマッチ
+    const m = name.match(/^(\d{4})\/(\d{1,2})営業KPI管理/);
+    if (m) {
+      const month = `${m[1]}/${m[2]}`;
+      map.push({ month, id: file.getId() });
+    }
+  }
+
+  // 年月順にソート
+  map.sort((a, b) => {
+    const [ay, am] = a.month.split('/').map(Number);
+    const [by, bm] = b.month.split('/').map(Number);
+    return ay !== by ? ay - by : am - bm;
+  });
+
+  return map;
+}
 
 // KPIサマリーシート名（各スプレッドシートの1枚目）
 const SUMMARY_SHEET_INDEX = 0;
@@ -45,6 +65,7 @@ function doGet(e) {
 // ============================================================
 function getAllKpi() {
   const months = [];
+  const SHEET_MAP = buildSheetMap();
 
   for (const entry of SHEET_MAP) {
     try {
