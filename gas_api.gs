@@ -16,7 +16,8 @@ const SHEET_MAP = [
   { month: "2026/3",  id: "1mUjwX0S-D82FhxJpEQi-l7R3299l4WwtzyOldMfOIh8" },
   { month: "2026/4",  id: "1vvZc4ibSm-Fna0--HeKSu1N8TgxA5Um7pr00FylBLu8" },
   { month: "2026/5",  id: "1z9_dsgX9c51gTzfr3cOxfmrcm8mx2NcApc-_PXFxCwY" },
-  { month: "2026/6",  id: "1nX_tVBkr6OACnDeChX7Bp-VJGV0foWL9ssZMKme7mlA" },
+  { month: "2026/6",  id: "18WNsKnP87f1k9fPPLyO_YXXKNfxFLWZLBBk-sBzgs0k" },
+  { month: "2026/7",  id: "1nX_tVBkr6OACnDeChX7Bp-VJGV0foWL9ssZMKme7mlA" },
 ];
 
 // KPIサマリーシート名（各スプレッドシートの1枚目）
