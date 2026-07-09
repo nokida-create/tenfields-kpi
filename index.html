@@ -361,7 +361,7 @@ tr:hover td{background:#f8f9ff}
       </div>
       <div class="md-charts">
         <div class="ccard">
-          <div class="ctitle">月次推移（全期間）</div>
+          <div class="ctitle">月次推移（直近12ヶ月）</div>
           <div style="position:relative;height:240px"><canvas id="detailTrendChart"></canvas></div>
         </div>
         <div class="ccard">
@@ -571,11 +571,16 @@ function renderHASection() {
   const avgNet = members.reduce((s,m)=>s+m.avgNet,0);
   if(nowHa!=null){
     document.getElementById('ha-month').textContent = fmt(nowHa*10000);
-    const pctTxt = nowHa!=null&&prevHa!=null&&prevHa!==0
-      ? (nowHa>=prevHa?'▲':'▼')+Math.abs((nowHa-prevHa)/Math.abs(prevHa)*100).toFixed(1)+'% vs 先月'
+    // 進行中の月は営業日ベースで着地予測を併記し、先月比は予測ベースで表示
+    const haFc = latestFCMonth ? monthForecast(latestFCMonth) : null;
+    const haF  = fcastVal(nowHa, haFc);
+    const cmp  = haF!=null ? haF : nowHa;
+    const pctTxt = prevHa!=null&&prevHa!==0
+      ? (cmp>=prevHa?'▲':'▼')+Math.abs((cmp-prevHa)/Math.abs(prevHa)*100).toFixed(1)+'% vs 先月'+(haF!=null?'（予測）':'')
       : '';
     document.getElementById('ha-month-sub').innerHTML =
-      `${ms[nowIdx]?.month??''} &ensp;<span class="${nowHa>=prevHa?'hi':'lo'}" style="font-size:.75rem">${pctTxt}</span>`;
+      `${latestFCMonth??''} &ensp;<span class="${cmp>=prevHa?'hi':'lo'}" style="font-size:.75rem">${pctTxt}</span>` +
+      (haF!=null ? `<div style="margin-top:3px;font-size:.78rem;color:#c47d00">📈 着地予測 <strong>${fmt(haF*10000)}</strong>（営業日 ${haFc.done}/${haFc.total}日消化）</div>` : '');
   }
   document.getElementById('ha-total').textContent = fmt(FC_HA_TOTAL.net);
   document.getElementById('ha-total-sub').textContent = '申込金額累計 全員合計';
@@ -678,13 +683,17 @@ function updateDetailHACard(name) {
   const nowNet  = lastIdx>=0 ? (hd.monthlyNet?.[lastIdx] ?? null) : null;
   const prevNet = prevIdx>=0 ? (hd.monthlyNet?.[prevIdx] ?? null) : null;
   document.getElementById('dd-ha').textContent = nowNet!=null ? fmt(nowNet) : '—';
+  const fc2 = lastMonth ? monthForecast(lastMonth) : null;
+  const netF = fcastVal(nowNet, fc2);
   let sub = '';
   if(nowNet!=null && prevNet!=null && prevNet!==0){
-    const pct = (nowNet-prevNet)/Math.abs(prevNet)*100;
-    sub = `<span class="${pct>=0?'hi':'lo'}">${pct>=0?'▲':'▼'}${Math.abs(pct).toFixed(1)}%</span> vs 先月`;
+    const cmp = netF!=null ? netF : nowNet;
+    const pct = (cmp-prevNet)/Math.abs(prevNet)*100;
+    sub = `<span class="${pct>=0?'hi':'lo'}">${pct>=0?'▲':'▼'}${Math.abs(pct).toFixed(1)}%</span> vs 先月${netF!=null?'<span style="color:var(--muted)">（予測ベース）</span>':''}`;
   } else {
     sub = `累計 ${fmt(hd.net)}`;
   }
+  if(netF!=null) sub += `<div style="margin-top:4px;font-size:.78rem;color:#c47d00">📈 着地予測 <strong>${fmt(netF)}</strong>（営業日 ${fc2.done}/${fc2.total}日消化）</div>`;
   document.getElementById('dd-ha-sub').innerHTML = sub;
   card.style.display = '';
 }
@@ -824,9 +833,9 @@ function renderOverview(opts={}) {
   const tels    = validMs.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
   const mtgs    = validMs.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
   const actions = validMs.map(m=>fcAvg(m,'action')).filter(v=>v!=null);
-  setCard('tel', fcAvg(L,'tel'), P?fcAvg(P,'tel'):null, avg(tels));
-  setCard('mtg', fcAvg(L,'mtg'), P?fcAvg(P,'mtg'):null, avg(mtgs));
-  setCard('act', fcAvg(L,'action'), P?fcAvg(P,'action'):null, avg(actions));
+  setCard('tel', fcAvg(L,'tel'), P?fcAvg(P,'tel'):null, avg(tels), L.month);
+  setCard('mtg', fcAvg(L,'mtg'), P?fcAvg(P,'mtg'):null, avg(mtgs), L.month);
+  setCard('act', fcAvg(L,'action'), P?fcAvg(P,'action'):null, avg(actions), L.month);
 
   const labels = (opts.fyMonths||ms.map(m=>m.month)).map((mStr,i)=>{
     const d = ms[i];
@@ -973,11 +982,20 @@ function renderSpMain(metric) {
   });
 }
 
-function setCard(k,v,pv,a) {
+function setCard(k,v,pv,a,mStr) {
   const vE=document.getElementById('kv-'+k),cE=document.getElementById('kc-'+k),aE=document.getElementById('ka-'+k);
   if(!vE)return;
-  vE.textContent=v!=null?v.toLocaleString():'—';
-  if(v!=null&&pv!=null){const p=(v-pv)/pv*100;cE.textContent=`${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(1)}% vs 先月`;cE.className=`badge ${p>=0?'up':'dn'}`;}
+  // 進行中の月は営業日ベースの着地予測を併記
+  const fc = mStr ? monthForecast(mStr) : null;
+  const f  = fcastVal(v, fc);
+  vE.innerHTML = (v!=null?v.toLocaleString():'—') +
+    (f!=null ? ` <span style="font-size:.42em;font-weight:700;color:#c47d00">→ 着地予測 ${f.toLocaleString()}（営業日 ${fc.done}/${fc.total}日）</span>` : '');
+  if(v!=null&&pv!=null){
+    const base = f!=null ? f : v;
+    const p=(base-pv)/pv*100;
+    cE.textContent=`${p>=0?'▲':'▼'} ${Math.abs(p).toFixed(1)}% vs 先月${f!=null?'（予測）':''}`;
+    cE.className=`badge ${p>=0?'up':'dn'}`;
+  }
   if(a)aE.textContent=Math.round(a).toLocaleString();
 }
 
@@ -1279,6 +1297,32 @@ function getAllMonthLabels() {
     return ay!==by?ay-by:am-bm;
   });
 }
+// ===== 営業日ベースの着地予測 =====
+// 土日 + 日本の祝日（必要に応じて追記）を除いた営業日で月内ペースを算出
+const JP_HOLIDAYS = new Set([
+  '2026/7/20','2026/8/11','2026/9/21','2026/9/23','2026/10/12','2026/11/3','2026/11/23',
+  '2027/1/1','2027/1/11','2027/2/11','2027/2/23','2027/3/21','2027/4/29','2027/5/3','2027/5/4','2027/5/5'
+]);
+function isBizDay(d) {
+  const w = d.getDay();
+  if (w === 0 || w === 6) return false;
+  return !JP_HOLIDAYS.has(`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`);
+}
+// mStr が「今カレンダー月」なら {done, total, ratio} を返す（それ以外は null）
+function monthForecast(mStr) {
+  const now = new Date();
+  const [y, m] = mStr.split('/').map(Number);
+  if (y !== now.getFullYear() || m !== now.getMonth() + 1) return null;
+  const dim = new Date(y, m, 0).getDate();
+  let total = 0, done = 0;
+  for (let day = 1; day <= dim; day++) {
+    if (isBizDay(new Date(y, m - 1, day))) { total++; if (day <= now.getDate()) done++; }
+  }
+  if (done === 0) return null;
+  return { done, total, ratio: total / done };
+}
+function fcastVal(v, fc) { return v != null && fc ? Math.round(v * fc.ratio) : null; }
+
 let globalFY = null; // null → getActiveFY()
 
 function getGlobalFY() {
@@ -1405,10 +1449,9 @@ function renderDetailAnalysis() {
 function renderDetailMonthTabs() {
   const container  = document.getElementById('detailMonthTabs');
   if(!container) return;
-  const fy = getGlobalFY();
   const allMonths  = getAllMonthLabels();
   const latestMonth = allMonths[allMonths.length-1];
-  const fyMonths   = allMonths.filter(m => getFY(m) === fy);
+  const fyMonths   = allMonths.slice(-12); // 直近12ヶ月をタブ表示
   // 現在の選択月が今のFY内にあるか確認
   const curMonth = detailMonthIdx >= 0 && detailMonthIdx < allMonths.length
     ? allMonths[detailMonthIdx] : latestMonth;
@@ -1450,8 +1493,18 @@ function switchDetailMonth(idx) {
   document.getElementById('dd-mtg-label').textContent = `総商談数（${ml}）`;
   document.getElementById('dd-tel').textContent = tel!=null ? tel.toLocaleString() : '—';
   document.getElementById('dd-mtg').textContent = mtg!=null ? mtg.toLocaleString() : '—';
-  document.getElementById('dd-tel-chg').innerHTML = fmtChg(tel, prevTel);
-  document.getElementById('dd-mtg-chg').innerHTML = fmtChg(mtg, prevMtg);
+  // 進行中の月は営業日ベースの着地予測を併記し、先月比は予測ベースで表示
+  const fc = monthForecast(ml);
+  const fcLine = (v, unit='件') => {
+    const f = fcastVal(v, fc);
+    return f != null ? `<div style="margin-top:4px;font-size:.78rem;color:#c47d00">📈 着地予測 <strong>${f.toLocaleString()}${unit}</strong>（営業日 ${fc.done}/${fc.total}日消化）</div>` : '';
+  };
+  const chgOf = (v, p) => {
+    const f = fcastVal(v, fc);
+    return f != null ? fmtChg(f, p) + '<span style="color:var(--muted)">（予測ベース）</span>' : fmtChg(v, p);
+  };
+  document.getElementById('dd-tel-chg').innerHTML = chgOf(tel, prevTel) + fcLine(tel);
+  document.getElementById('dd-mtg-chg').innerHTML = chgOf(mtg, prevMtg) + fcLine(mtg);
   // HA card
   const hd = FC_HA[detailMember];
   if(hd && FC_MONTHS.length) {
@@ -1464,7 +1517,10 @@ function switchDetailMonth(idx) {
     const fmt = v => v>=10000?(v/10000).toFixed(1)+'億円':v.toLocaleString()+'万円';
     document.getElementById('dd-ha-label').textContent = `💰 純申込金額（${ml}）`;
     document.getElementById('dd-ha').textContent = haMan!=null ? fmt(haMan) : '—';
-    document.getElementById('dd-ha-sub').innerHTML = fmtChg(haMan, prevHaMan);
+    const haF = fcastVal(haMan, fc);
+    document.getElementById('dd-ha-sub').innerHTML =
+      (haF != null ? fmtChg(haF, prevHaMan) + '<span style="color:var(--muted)">（予測ベース）</span>' : fmtChg(haMan, prevHaMan)) +
+      (haF != null ? `<div style="margin-top:4px;font-size:.78rem;color:#c47d00">📈 着地予測 <strong>${fmt(haF)}</strong>（営業日 ${fc.done}/${fc.total}日消化）</div>` : '');
     document.getElementById('dd-ha-card').style.display = '';
   }
   // Radar chart
@@ -1502,10 +1558,9 @@ function renderDetailContent() {
   const allMonthsAll = getAllMonthLabels();
   if(detailMonthIdx < 0 || detailMonthIdx >= allMonthsAll.length) detailMonthIdx = allMonthsAll.length - 1;
 
-  // 担当者別トレンドはFYフィルター
-  const fy = getGlobalFY();
+  // 担当者別トレンドはFYに関係なく直近12ヶ月を表示（FY切替直後の1本バー防止）
   const allMonths = getAllMonthLabels();
-  const fyMonths = allMonths.filter(m => getFY(m) === fy);
+  const fyMonths = allMonths.slice(-12);
 
   const labels = fyMonths;
   const telArr = fyMonths.map(mStr => {
