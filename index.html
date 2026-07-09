@@ -719,11 +719,30 @@ function renderHARanking() {
   });
 }
 
+// ライブデータと静的履歴をマージ
+// GASが読めない過去月（2025/7〜2026/4）はSTATICの値を使い、
+// メンバーデータのあるライブ月はライブを優先する
+function mergeMonths(liveMonths) {
+  const byMonth = new Map();
+  for (const m of STATIC.months) byMonth.set(m.month, m);
+  for (const m of (liveMonths || [])) {
+    if (!m || !m.month) continue;
+    const hasData = !m.error && m.members && Object.keys(m.members).length > 0;
+    if (hasData || !byMonth.has(m.month)) byMonth.set(m.month, m);
+  }
+  return [...byMonth.values()].sort((a, b) => {
+    const [ay, am] = a.month.split('/').map(Number);
+    const [by, bm] = b.month.split('/').map(Number);
+    return ay !== by ? ay - by : am - bm;
+  });
+}
+
 async function loadData() {
   if (GAS_URL) {
     try {
       const r = await fetch(GAS_URL);
-      D = await r.json();
+      const j = await r.json();
+      D = { ...j, months: mergeMonths(j.months) };
       showBanner(true);
     } catch(e) { D = STATIC; showBanner(false); }
   } else { D = STATIC; showBanner(false); }
