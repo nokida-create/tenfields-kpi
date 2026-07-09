@@ -533,7 +533,7 @@ async function loadFCData() {
     FC_HA = {};
     // スプレッドシートの値は万円単位なので×10000して円に変換
     const NAME_MAP = {'齋藤':'齊藤'};
-    FC_HA_TOTAL = {ha:(j.total?.ha||0)*10000, net:(j.total?.net||0)*10000};
+    FC_HA_TOTAL = {ha:(j.total?.ha||0)*10000, net:(j.total?.net||0)*10000, ma:(j.total?.ma||0)*10000, cancel:(j.total?.cancel||0)*10000};
     FC_MONTHS = j.months || [];
     FC_TOTAL_MONTHLY = j.totalMonthly || []; // GASが既に万円単位で返す
     (j.members||[]).forEach(m=>{
@@ -1711,13 +1711,13 @@ function renderSalesRanking(){
   const fyEntries=allEntries.map(([name,hd])=>[name,hd,fyStats(hd)]);
   const fyTotalNet=fyEntries.reduce((s,[,,st])=>s+st.net,0);
 
-  // 合計カード（FY表示）
+  // 合計カード（両カードとも全期間・全員合計で統一 — FY切替に依存させない）
   document.getElementById('sr-total-ha').textContent=fmtMan(FC_HA_TOTAL.ha)+'万円';
   document.getElementById('sr-total-ha-sub').textContent='全員累計（全期間）';
-  document.getElementById('sr-total-net').textContent=fmtMan(fyTotalNet)+'万円';
-  const totalMa=allEntries.reduce((s,[,m])=>s+m.ma,0);
-  const totalCancel=allEntries.reduce((s,[,m])=>s+m.cancel,0);
-  document.getElementById('sr-total-sub').textContent=`${fy}年度（${fyFCMonths.length}ヶ月） / 全期間 申込${fmtMan(totalMa)}万 解約${fmtMan(totalCancel)}万`;
+  const totalMa=FC_HA_TOTAL.ma||allEntries.reduce((s,[,m])=>s+m.ma,0);
+  const totalCancel=FC_HA_TOTAL.cancel||allEntries.reduce((s,[,m])=>s+m.cancel,0);
+  document.getElementById('sr-total-net').textContent=fmtMan(FC_HA_TOTAL.net)+'万円';
+  document.getElementById('sr-total-sub').textContent=`全員累計（全期間） 申込${fmtMan(totalMa)}万 − 解約${fmtMan(totalCancel)}万`;
 
   // 棒グラフ（本契約）
   function buildChart(id,items,key,cls){
@@ -1737,9 +1737,9 @@ function renderSalesRanking(){
       </div>`;
     });
   }
-  // 本契約（全期間）/ 純申込（FY）でソート
+  // 本契約・純申込とも全期間でソート（表示を安定させる）
   const byHa=[...allEntries].sort((a,b)=>b[1].ha-a[1].ha);
-  const byNet=[...fyEntries].sort((a,b)=>b[2].net-a[2].net).map(([n,d,st])=>[n,{...d,net:st.net}]);
+  const byNet=[...allEntries].sort((a,b)=>b[1].net-a[1].net);
   buildChart('sr-chart-ha',byHa,'ha','sr-bar-blue');
   buildChart('sr-chart-net',byNet,'net','sr-bar-green');
 
@@ -1753,25 +1753,25 @@ function renderSalesRanking(){
   // 比較テーブル（本契約順 / 純申込はFY集計）
   const medals=['🥇','🥈','🥉'];
   const tb=document.getElementById('sr-tbody'); tb.innerHTML='';
-  // FY純申込順でソートしてテーブル表示
-  const tableEntries=[...fyEntries].sort((a,b)=>b[2].net-a[2].net);
-  tableEntries.forEach(([name,d,st],i)=>{
-    const fyNetMan=Math.round(st.net/10000);
-    const fyAvgMan=Math.round(st.avg/10000);
+  // 全期間の純申込順でソートしてテーブル表示
+  const tableEntries=[...allEntries].sort((a,b)=>b[1].net-a[1].net);
+  tableEntries.forEach(([name,d],i)=>{
+    const netMan=Math.round(d.net/10000);
+    const avgMan=Math.round(d.avgNet/10000);
     const haMan=Math.round(d.ha/10000);
     tb.innerHTML+=`<tr>
       <td><strong>${medals[i]??`${i+1}位`} ${name}</strong></td>
-      <td style="text-align:center">${fyFCMonths.length}ヶ月</td>
+      <td style="text-align:center">${d.months?d.months+'ヶ月':'—'}</td>
       <td style="text-align:center">${cancelPill(d.cancelRate)}</td>
-      <td style="text-align:center">${fyNetMan>0?fyNetMan.toLocaleString():'<span class="dim">—</span>'}</td>
-      <td style="text-align:center">${fyAvgMan>0?fyAvgMan.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td style="text-align:center">${netMan>0?netMan.toLocaleString():'<span class="dim">—</span>'}</td>
+      <td style="text-align:center">${avgMan>0?avgMan.toLocaleString():'<span class="dim">—</span>'}</td>
       <td style="text-align:center"><strong>${haMan>0?haMan.toLocaleString():'<span class="dim">—</span>'}</strong></td>
     </tr>`;
   });
 
   // フッター合計
   const sumHa=allEntries.reduce((s,[,d])=>s+d.ha,0);
-  const sumNet=fyEntries.reduce((s,[,,st])=>s+st.net,0);
+  const sumNet=allEntries.reduce((s,[,d])=>s+d.net,0);
   const avgRate=totalMa>0?Math.round(totalCancel/totalMa*1000)/10:null;
   document.getElementById('sr-tfoot-rate').innerHTML=cancelPill(avgRate);
   document.getElementById('sr-tfoot-net').textContent=Math.round(sumNet/10000).toLocaleString()+'万';
