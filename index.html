@@ -828,7 +828,12 @@ function renderOverview(opts={}) {
   // KPIカードもFY内最新月を使う
   const validMs = ms.filter(m=>fcCount(m,'tel')>0||fcCount(m,'mtg')>0);
   const L = validMs.length ? validMs[validMs.length-1] : ms[ms.length-1];
-  const P = validMs.length > 1 ? validMs[validMs.length-2] : null;
+  // 前月はFY内に無ければ全期間から取得（年度初月でも前月比・今月vs先月を出す）
+  let P = validMs.length > 1 ? validMs[validMs.length-2] : null;
+  if(!P && L){
+    const gi = D.months.findIndex(m=>m.month===L.month);
+    if(gi>0) P = D.months[gi-1];
+  }
   if(!L) return;
   const tels    = validMs.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
   const mtgs    = validMs.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
@@ -927,10 +932,14 @@ function renderOverview(opts={}) {
     +(hasHa?`<th>純申込合計</th><th>前月比</th>`:'');
   const tb = document.getElementById('sumTbody'); tb.innerHTML='';
   ms.forEach((m,i)=>{
-    const p = i>0?ms[i-1]:null;
+    // FY先頭月の前月は全期間から取得
+    let p = i>0?ms[i-1]:null;
+    if(!p){ const gi=D.months.findIndex(x=>x.month===m.month); if(gi>0) p=D.months[gi-1]; }
     const tel=fcAvg(m,'tel'), mtg=fcAvg(m,'mtg');
     const ptel=p?fcAvg(p,'tel'):null, pmtg=p?fcAvg(p,'mtg'):null;
-    const ha=hasHa?haD[i]:null, pha=hasHa&&i>0?haD[i-1]:null;
+    const ha=hasHa?haD[i]:null;
+    let pha=hasHa&&i>0?haD[i-1]:null;
+    if(hasHa&&pha==null){ const gi=FC_MONTHS.indexOf(m.month); if(gi>0) pha=FC_TOTAL_MONTHLY[gi-1]??null; }
     const cnt = fcCount(m,'tel');
     const bw = tel?Math.round(tel/maxT*80):0;
     const isL = i===ms.length-1;
@@ -1134,10 +1143,9 @@ function renderMemberCards() {
       scales:{x:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}},y:{grid:{display:false}}}}
   });
 
-  const fy2=getGlobalFY();
-  const fyMsForAvg=D.months.filter(m=>getFY(m.month)===fy2);
+  // 月平均は「在籍期間全体」のタイトル通り全期間で計算
   const cum={},cumCnt={};
-  fyMsForAvg.forEach(m=>Object.entries(m.members).forEach(([n,v])=>{if(isFC(n)&&(v[memberMetric]??null)!=null){cum[n]=(cum[n]||0)+v[memberMetric];cumCnt[n]=(cumCnt[n]||0)+1;}}));
+  D.months.forEach(m=>Object.entries(m.members).forEach(([n,v])=>{if(isFC(n)&&(v[memberMetric]??null)!=null){cum[n]=(cum[n]||0)+v[memberMetric];cumCnt[n]=(cumCnt[n]||0)+1;}}));
   const cumAvg={};Object.keys(cum).forEach(n=>{cumAvg[n]=cumCnt[n]?Math.round(cum[n]/cumCnt[n]*10)/10:0;});
   const cumS=Object.entries(cumAvg).sort((a,b)=>b[1]-a[1]);
   if(charts.memberAvg) charts.memberAvg.destroy();
@@ -1186,7 +1194,7 @@ function renderMemberTable() {
       fyFCIdxs.forEach((globalIdx,pos)=>{
         const i=globalIdx;
         const v=hd.monthlyNet?.[i]??null;
-        const pv=pos>0?hd.monthlyNet?.[fyFCIdxs[pos-1]]??null:null;
+        const pv=pos>0?hd.monthlyNet?.[fyFCIdxs[pos-1]]??null:(i>0?hd.monthlyNet?.[i-1]??null:null);
         row+=`<td style="border-left:1px solid var(--border)">${fmtMan(v)}</td>`;
         row+=`<td>${pctFc(v,pv,fyFCM[pos],x=>Math.round(x/10000).toLocaleString()+'万')}</td>`;
       });
@@ -1204,7 +1212,8 @@ function renderMemberTable() {
     let row=`<tr><td>${name}</td>`;
     ms.forEach((m,i)=>{
       const v=m.members[name]?.[memberMetric]??null;
-      const pv=i>0?ms[i-1].members[name]?.[memberMetric]??null:null;
+      let pv=i>0?ms[i-1].members[name]?.[memberMetric]??null:null;
+      if(i===0){ const gi=D.months.findIndex(x=>x.month===m.month); if(gi>0) pv=D.months[gi-1].members[name]?.[memberMetric]??null; }
       row+=`<td style="border-left:1px solid var(--border)">${v!=null?v.toLocaleString():'<span class="dim">—</span>'}</td>`;
       row+=`<td>${pctFc(v,pv,m.month)}</td>`;
     });
@@ -1219,7 +1228,13 @@ function renderRanking() {
   const fy=getGlobalFY();
   const ms=D.months.filter(m=>getFY(m.month)===fy);
   if(!ms.length){ document.getElementById('rankSub').textContent='データなし'; return; }
-  const L=ms[ms.length-1], P=ms[ms.length-2]||ms[0];
+  const L=ms[ms.length-1];
+  // 前月はFY内に無ければ全期間から取得
+  let P=ms[ms.length-2];
+  if(!P){
+    const gi=D.months.findIndex(m=>m.month===L.month);
+    P=gi>0?D.months[gi-1]:L;
+  }
   document.getElementById('rankSub').textContent=L.month;
   const col=rankMetric==='tel'?'#a78bfa':rankMetric==='mtg'?'#00c9a7':'#ff6b6b';
 
@@ -1233,9 +1248,9 @@ function renderRanking() {
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:40}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1,callbacks:{label:c=>` ${c.raw.toLocaleString()}`}},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v>0?v.toLocaleString():null}},scales:{x:{grid:{color:'rgba(226,230,239,.8)'},ticks:{callback:v=>v>=1000?(v/1000).toFixed(1)+'k':v}},y:{grid:{display:false}}}}
   });
 
-  // Monthly average (total ÷ months with data per member)
+  // Monthly average (total ÷ months with data per member) — 全期間で計算
   const cum={},cumCnt={};
-  ms.forEach(m=>Object.entries(m.members).forEach(([n,v])=>{if(isFC(n)&&(v[rankMetric]??null)!=null){cum[n]=(cum[n]||0)+v[rankMetric];cumCnt[n]=(cumCnt[n]||0)+1;}}));
+  D.months.forEach(m=>Object.entries(m.members).forEach(([n,v])=>{if(isFC(n)&&(v[rankMetric]??null)!=null){cum[n]=(cum[n]||0)+v[rankMetric];cumCnt[n]=(cumCnt[n]||0)+1;}}));
   const cumAvg={};Object.keys(cum).forEach(n=>{cumAvg[n]=cumCnt[n]?Math.round(cum[n]/cumCnt[n]*10)/10:0;});
   const cumS=Object.entries(cumAvg).sort((a,b)=>b[1]-a[1]).slice(0,15);
   if(charts.cum) charts.cum.destroy();
