@@ -896,13 +896,19 @@ function renderOverview(opts={}) {
   if(charts.bar) charts.bar.destroy();
   if(P && L && fcAvg(L,'tel')!=null) {
     document.getElementById('barSub').textContent = `${P.month} vs ${L.month}`;
+    // 進行中の月は着地予測バーも並べる
+    const barFc = monthForecast(L.month);
+    const barDatasets = [
+      {label:P.month,data:[fcAvg(P,'tel'),fcAvg(P,'mtg')],backgroundColor:'rgba(108,99,255,.4)',borderColor:'#6c63ff',borderWidth:1,borderRadius:6},
+      {label:L.month+(barFc?'（実績）':''),data:[fcAvg(L,'tel'),fcAvg(L,'mtg')],backgroundColor:'rgba(0,201,167,.5)',borderColor:'#00c9a7',borderWidth:1,borderRadius:6},
+    ];
+    if(barFc) barDatasets.push(
+      {label:`${L.month} 着地予測`,data:[fcastVal(fcAvg(L,'tel'),barFc),fcastVal(fcAvg(L,'mtg'),barFc)],backgroundColor:'rgba(245,166,35,.35)',borderColor:'#f5a623',borderWidth:1.5,borderRadius:6}
+    );
     charts.bar = new Chart(document.getElementById('barChart'), {
     type:'bar', data:{
       labels:['電話件数','総商談数'],
-      datasets:[
-        {label:P.month,data:[fcAvg(P,'tel'),fcAvg(P,'mtg')],backgroundColor:'rgba(108,99,255,.4)',borderColor:'#6c63ff',borderWidth:1,borderRadius:6},
-        {label:L.month,data:[fcAvg(L,'tel'),fcAvg(L,'mtg')],backgroundColor:'rgba(0,201,167,.5)',borderColor:'#00c9a7',borderWidth:1,borderRadius:6},
-      ]},
+      datasets:barDatasets},
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'top',labels:{boxWidth:12,font:{size:11}}},tooltip:{backgroundColor:'#fff',borderColor:'#e2e6ef',borderWidth:1},
         datalabels:{display:true,anchor:'end',align:'top',font:{size:11,weight:'bold'},color:'#1a1f36',formatter:v=>v!=null?(v>=1000?(v/1000).toFixed(1)+'k':v):null}},
@@ -932,10 +938,10 @@ function renderOverview(opts={}) {
       <td><span class="mbadge">${m.month}</span>${isL?' <span class="badge up" style="font-size:.62rem;">最新</span>':''}</td>
       <td class="dim">${cnt}名</td>
       <td class="${tel===maxT?'hi':''}"><div style="display:flex;flex-direction:column;gap:3px"><span>${f(tel)}</span><span style="display:block;width:80px;height:4px;background:var(--border);border-radius:2px"><span style="display:block;width:${bw}px;max-width:80px;height:4px;background:#a78bfa;border-radius:2px"></span></span></div></td>
-      <td>${pct(tel,ptel)}</td>
+      <td>${pctFc(tel,ptel,m.month)}</td>
       <td>${f(mtg)}</td>
-      <td>${pct(mtg,pmtg)}</td>
-      ${hasHa?`<td style="color:#c47d00;font-weight:600">${fmtHa(ha)}</td><td>${pct(ha,pha)}</td>`:''}
+      <td>${pctFc(mtg,pmtg,m.month)}</td>
+      ${hasHa?`<td style="color:#c47d00;font-weight:600">${fmtHa(ha)}</td><td>${pctFc(ha,pha,m.month,fmtHa)}</td>`:''}
     </tr>`;
   });
 
@@ -1084,12 +1090,11 @@ function renderMemberCards() {
     const tb=document.getElementById('memberRankTbody');tb.innerHTML='';
     sortedMonth.forEach(([name,hd,curVal],idx)=>{
       const prevVal=haMonthIdx>0?(hd.monthlyNet?.[haMonthIdx-1]??null):null;
-      const p=curVal!=null&&prevVal!=null&&prevVal!==0?(curVal-prevVal)/Math.abs(prevVal)*100:null;
       tb.innerHTML+=`<tr>
         <td class="${idx<3?'hi':''}">${medals[idx]??`${idx+1}位`}</td>
         <td><strong>${name}</strong></td>
         <td class="hi" style="color:#f5a623">${fmtMan(curVal)}</td>
-        <td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'—'}</td>
+        <td>${pctFc(curVal,prevVal,curMonth,fmtMan)}</td>
         <td class="dim">${prevVal!=null?fmtMan(prevVal):'—'}</td>
         <td>${fmtMan(hd.avgNet)}</td>
       </tr>`;
@@ -1150,12 +1155,11 @@ function renderMemberCards() {
   sorted.forEach(([name,vals],idx)=>{
     const v=vals[memberMetric]??null;
     const pv=prv?.members[name]?.[memberMetric]??null;
-    const p=v!=null&&pv!=null&&pv>0?(v-pv)/pv*100:null;
     tb.innerHTML+=`<tr>
       <td class="${idx<3?'hi':''}">${medals[idx]??`${idx+1}位`}</td>
       <td><strong>${name}</strong></td>
       <td class="hi">${v!=null?v.toLocaleString():'—'}</td>
-      <td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'—'}</td>
+      <td>${pctFc(v,pv,curMonth)}</td>
       <td class="dim">${pv!=null?pv.toLocaleString():'—'}</td>
       <td>${cumAvg[name]!=null?cumAvg[name].toFixed(1):'—'}</td>
     </tr>`;
@@ -1183,9 +1187,8 @@ function renderMemberTable() {
         const i=globalIdx;
         const v=hd.monthlyNet?.[i]??null;
         const pv=pos>0?hd.monthlyNet?.[fyFCIdxs[pos-1]]??null:null;
-        const p=v!=null&&pv!=null&&pv!==0?(v-pv)/Math.abs(pv)*100:null;
         row+=`<td style="border-left:1px solid var(--border)">${fmtMan(v)}</td>`;
-        row+=`<td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'<span class="dim">—</span>'}</td>`;
+        row+=`<td>${pctFc(v,pv,fyFCM[pos],x=>Math.round(x/10000).toLocaleString()+'万')}</td>`;
       });
       tbody.innerHTML+=row+'</tr>';
     });
@@ -1202,9 +1205,8 @@ function renderMemberTable() {
     ms.forEach((m,i)=>{
       const v=m.members[name]?.[memberMetric]??null;
       const pv=i>0?ms[i-1].members[name]?.[memberMetric]??null:null;
-      const p=v!=null&&pv!=null?(v-pv)/pv*100:null;
       row+=`<td style="border-left:1px solid var(--border)">${v!=null?v.toLocaleString():'<span class="dim">—</span>'}</td>`;
-      row+=`<td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'<span class="dim">—</span>'}</td>`;
+      row+=`<td>${pctFc(v,pv,m.month)}</td>`;
     });
     tbody.innerHTML+=row+'</tr>';
   });
@@ -1247,13 +1249,12 @@ function renderRanking() {
   sorted.forEach(([name,vals],idx)=>{
     const v=vals[rankMetric]??null;
     const pv=P.members[name]?.[rankMetric]??null;
-    const p=v!=null&&pv!=null?(v-pv)/pv*100:null;
     const medals=['🥇','🥈','🥉'];
     tb.innerHTML+=`<tr>
       <td class="${idx<3?'hi':''}">${medals[idx]??`${idx+1}位`}</td>
       <td><strong>${name}</strong></td>
       <td class="hi">${v!=null?v.toLocaleString():'—'}</td>
-      <td>${p!=null?`<span class="${p>=0?'hi':'lo'}">${p>=0?'▲':'▼'}${Math.abs(p).toFixed(1)}%</span>`:'—'}</td>
+      <td>${pctFc(v,pv,L.month)}</td>
       <td class="dim">${pv!=null?pv.toLocaleString():'—'}</td>
       <td>${cumAvg[name]!=null?(cumAvg[name]).toFixed(1):'—'}</td>
     </tr>`;
@@ -1322,6 +1323,14 @@ function monthForecast(mStr) {
   return { done, total, ratio: total / done };
 }
 function fcastVal(v, fc) { return v != null && fc ? Math.round(v * fc.ratio) : null; }
+// テーブルセル用: 進行中の月は着地予測ベースの前月比バッジ + 予測値注記（過去月は通常の前月比）
+function pctFc(v, pv, mStr, fmt) {
+  const fc = mStr ? monthForecast(mStr) : null;
+  const f  = fcastVal(v, fc);
+  if (f == null) return pct(v, pv);
+  const shown = fmt ? fmt(f) : f.toLocaleString();
+  return pct(f, pv) + `<div style="font-size:.66rem;color:#c47d00;white-space:nowrap">予測${shown}ベース</div>`;
+}
 
 let globalFY = null; // null → getActiveFY()
 
@@ -1664,11 +1673,11 @@ function renderDetailContent() {
     tb.innerHTML+=`<tr>
       <td>${m.month}</td>
       <td class="${v?.tel?'hi':''}">${v?.tel!=null?v.tel.toLocaleString():'<span class="dim">—</span>'}</td>
-      <td>${fmtChg(v?.tel,pv?.tel)}</td>
+      <td>${pctFc(v?.tel??null,pv?.tel??null,m.month)}</td>
       <td>${v?.mtg!=null?v.mtg.toLocaleString():'<span class="dim">—</span>'}</td>
-      <td>${fmtChg(v?.mtg,pv?.mtg)}</td>
+      <td>${pctFc(v?.mtg??null,pv?.mtg??null,m.month)}</td>
       <td style="color:#f5a623;font-weight:600">${haMan!=null?haMan.toLocaleString()+'万':'<span class="dim">—</span>'}</td>
-      <td>${fmtChg(haMan,prevHaMan)}</td>
+      <td>${pctFc(haMan,prevHaMan,m.month,x=>x.toLocaleString()+'万')}</td>
       <td class="dim">${rankStr}</td>
     </tr>`;
   });
