@@ -559,10 +559,15 @@ function renderHASection() {
     return idx >= 0 ? FC_TOTAL_MONTHLY[idx] : null;
   }) : null;
 
-  // 純申込カードの対象月（チーム概要の月タブに連動、未選択ならFC_MONTHSの最新月）
-  const latestFCMonth = (overviewMonth && FC_MONTHS.includes(overviewMonth))
-    ? overviewMonth
-    : (FC_MONTHS.length ? FC_MONTHS[FC_MONTHS.length-1] : null);
+  // 純申込カードの対象月（チーム概要の月タブに連動、未選択なら表示年度内の最新FC月）
+  let latestFCMonth = null;
+  if (overviewMonth && FC_MONTHS.includes(overviewMonth)) {
+    latestFCMonth = overviewMonth;
+  } else {
+    const fyFC = FC_MONTHS.filter(m => getFY(m) === getGlobalFY());
+    latestFCMonth = fyFC.length ? fyFC[fyFC.length-1]
+      : (FC_MONTHS.length ? FC_MONTHS[FC_MONTHS.length-1] : null);
+  }
   const selFCIdx = latestFCMonth ? FC_MONTHS.indexOf(latestFCMonth) : -1;
   const prevFCMonth = selFCIdx > 0 ? FC_MONTHS[selFCIdx-1] : null;
   const latestIdx = latestFCMonth ? allMonths.indexOf(latestFCMonth) : -1;
