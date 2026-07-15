@@ -194,11 +194,13 @@ tr:hover td{background:#f8f9ff}
 <div id="view-overview">
   <div id="gasBanner" class="gas-banner" style="display:none"></div>
 
+  <div class="d-month-tabs" id="ovMonthTabs" style="margin:4px 0 12px"></div>
+
   <div class="krow" style="grid-template-columns:repeat(3,1fr)">
-    <div class="kcard ct"><div class="klabel">電話件数 / 1人当たり（今月）</div><div class="kval" id="kv-tel">—</div><div class="ksub"><span class="badge up" id="kc-tel">—</span> &ensp;12ヶ月平均: <strong id="ka-tel">—</strong></div></div>
-    <div class="kcard cm"><div class="klabel">総商談数 / 1人当たり（今月）</div><div class="kval" id="kv-mtg">—</div><div class="ksub"><span class="badge up" id="kc-mtg">—</span> &ensp;12ヶ月平均: <strong id="ka-mtg">—</strong></div></div>
+    <div class="kcard ct"><div class="klabel" id="kl-tel">電話件数 / 1人当たり（今月）</div><div class="kval" id="kv-tel">—</div><div class="ksub"><span class="badge up" id="kc-tel">—</span> &ensp;12ヶ月平均: <strong id="ka-tel">—</strong></div></div>
+    <div class="kcard cm"><div class="klabel" id="kl-mtg">総商談数 / 1人当たり（今月）</div><div class="kval" id="kv-mtg">—</div><div class="ksub"><span class="badge up" id="kc-mtg">—</span> &ensp;12ヶ月平均: <strong id="ka-mtg">—</strong></div></div>
     <div class="kcard" style="border-top:4px solid #f5a623">
-      <div class="klabel">💰 純申込金額 / チーム合計（今月）</div>
+      <div class="klabel" id="kl-ha">💰 純申込金額 / チーム合計（今月）</div>
       <div class="kval" id="ha-month" style="color:#f5a623">—</div>
       <div class="ksub" id="ha-month-sub">読み込み中...</div>
     </div>
@@ -557,9 +559,12 @@ function renderHASection() {
     return idx >= 0 ? FC_TOTAL_MONTHLY[idx] : null;
   }) : null;
 
-  // 今月・先月の純申込（FC_MONTHSの最新月 = 今月）
-  const latestFCMonth = FC_MONTHS.length ? FC_MONTHS[FC_MONTHS.length-1] : null;
-  const prevFCMonth   = FC_MONTHS.length > 1 ? FC_MONTHS[FC_MONTHS.length-2] : null;
+  // 純申込カードの対象月（チーム概要の月タブに連動、未選択ならFC_MONTHSの最新月）
+  const latestFCMonth = (overviewMonth && FC_MONTHS.includes(overviewMonth))
+    ? overviewMonth
+    : (FC_MONTHS.length ? FC_MONTHS[FC_MONTHS.length-1] : null);
+  const selFCIdx = latestFCMonth ? FC_MONTHS.indexOf(latestFCMonth) : -1;
+  const prevFCMonth = selFCIdx > 0 ? FC_MONTHS[selFCIdx-1] : null;
   const latestIdx = latestFCMonth ? allMonths.indexOf(latestFCMonth) : -1;
   const prevIdx2  = prevFCMonth   ? allMonths.indexOf(prevFCMonth)   : -1;
   const nowHa  = latestIdx >= 0 ? haMonthly?.[latestIdx] ?? null : null;
@@ -827,13 +832,35 @@ function renderOverview(opts={}) {
 
   // KPIカードもFY内最新月を使う
   const validMs = ms.filter(m=>fcCount(m,'tel')>0||fcCount(m,'mtg')>0);
-  const L = validMs.length ? validMs[validMs.length-1] : ms[ms.length-1];
-  // 前月はFY内に無ければ全期間から取得（年度初月でも前月比・今月vs先月を出す）
-  let P = validMs.length > 1 ? validMs[validMs.length-2] : null;
-  if(!P && L){
+  // 選択月（月タブ）。未選択・FY外ならFY内最新月
+  let L = overviewMonth ? validMs.find(m=>m.month===overviewMonth) : null;
+  if(!L) L = validMs.length ? validMs[validMs.length-1] : ms[ms.length-1];
+  // 前月は全期間から取得（年度初月でも前月比・今月vs先月を出す）
+  let P = null;
+  if(L){
     const gi = D.months.findIndex(m=>m.month===L.month);
     if(gi>0) P = D.months[gi-1];
   }
+
+  // 月タブ描画（データのあるFY内の月）
+  const tabC = document.getElementById('ovMonthTabs');
+  if(tabC){
+    const nowStr = new Date().getFullYear()+'/'+(new Date().getMonth()+1);
+    tabC.innerHTML = validMs.map(m=>{
+      const isLive = m.month===nowStr;
+      const cls = ['dtab-m', m.month===L.month?'active':'', isLive?'live':''].filter(Boolean).join(' ');
+      const label = m.month.replace(/^20(\d\d)\//,'$1/');
+      return `<button class="${cls}" onclick="setOverviewMonth('${m.month}')">${label}${isLive?' ●':''}</button>`;
+    }).join('');
+  }
+
+  // カードのラベルを選択月に合わせる
+  const isCur = !!monthForecast(L.month);
+  const lblSuffix = `（${L.month}${isCur?'・進行中':''}）`;
+  const setLbl=(id,base)=>{const e=document.getElementById(id);if(e)e.textContent=base+lblSuffix;};
+  setLbl('kl-tel','電話件数 / 1人当たり');
+  setLbl('kl-mtg','総商談数 / 1人当たり');
+  setLbl('kl-ha','💰 純申込金額 / チーム合計');
   if(!L) return;
   const tels    = validMs.map(m=>fcAvg(m,'tel')).filter(v=>v!=null);
   const mtgs    = validMs.map(m=>fcAvg(m,'mtg')).filter(v=>v!=null);
@@ -1348,6 +1375,13 @@ function pctFc(v, pv, mStr, fmt) {
 }
 
 let globalFY = null; // null → getActiveFY()
+let overviewMonth = null; // チーム概要の選択月（null=FY内最新月）
+
+function setOverviewMonth(m){
+  overviewMonth = m;
+  renderOverviewFY();
+  if(Object.keys(FC_HA).length) renderHASection();
+}
 
 function getGlobalFY() {
   if(globalFY !== null) return globalFY;
@@ -1375,6 +1409,7 @@ function updateFyBar() {
 function setGlobalFY(fy) {
   globalFY = fy;
   detailMonthIdx = -1;
+  overviewMonth = null; // FY切替時は月選択をリセット
   // curMonth を新FY内の最新 D.months 月にリセット
   const fyMs = (D?.months||[]).filter(m => getFY(m.month) === fy);
   if(fyMs.length) curMonth = fyMs[fyMs.length-1].month;
