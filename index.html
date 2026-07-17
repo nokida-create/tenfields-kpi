@@ -311,11 +311,11 @@ tr:hover td{background:#f8f9ff}
   <div id="haRankSection" style="display:none">
     <div class="cgrid">
       <div class="ccard">
-        <div class="ctitle">申込金額 累計ランキング</div>
+        <div class="ctitle" id="haRankTitle">申込金額 累計ランキング</div>
         <div style="position:relative;height:380px"><canvas id="haRankChart"></canvas></div>
       </div>
       <div class="ccard">
-        <div class="ctitle">申込金額 月平均ランキング</div>
+        <div class="ctitle" id="haAvgTitle">申込金額 月平均ランキング</div>
         <div style="position:relative;height:380px"><canvas id="haAvgChart"></canvas></div>
       </div>
     </div>
@@ -714,12 +714,21 @@ function renderHARanking() {
   document.getElementById('rankTableWrap').style.display = 'none';
   document.getElementById('haRankSection').style.display = '';
 
-  // net=純申込金額（申込-解約）、ha=本契約金額
-  const entries = Object.entries(FC_HA).filter(([n])=>isFC(n));
+  // net=純申込金額（申込-解約）— 表示年度でフィルターして集計
+  const fy = getGlobalFY();
+  const fyIdxs = FC_MONTHS.map((m,i)=>getFY(m)===fy?i:-1).filter(i=>i>=0);
+  const fyStat = hd=>{
+    let net=0,cnt=0;
+    fyIdxs.forEach(i=>{const v=hd.monthlyNet?.[i]??null;if(v!=null){net+=v;cnt++;}});
+    return {net, avg:cnt?Math.round(net/cnt):0};
+  };
+  const entries = Object.entries(FC_HA).filter(([n])=>isFC(n)).map(([n,hd])=>[n,fyStat(hd)]);
   const sorted    = [...entries].sort((a,b)=>b[1].net-a[1].net);
-  const sortedAvg = [...entries].sort((a,b)=>b[1].avgNet-a[1].avgNet);
+  const sortedAvg = [...entries].sort((a,b)=>b[1].avg-a[1].avg);
   const fmt = v=>v>=100000000?(v/100000000).toFixed(1)+'億':v>=10000?Math.round(v/10000).toLocaleString()+'万':v.toLocaleString();
   const colFc = 'rgba(245,166,35,.7)';
+  const t1=document.getElementById('haRankTitle'); if(t1) t1.textContent=`申込金額 累計ランキング（${fy}年度）`;
+  const t2=document.getElementById('haAvgTitle');  if(t2) t2.textContent=`申込金額 月平均ランキング（${fy}年度）`;
 
   if(charts.haRank) charts.haRank.destroy();
   charts.haRank = new Chart(document.getElementById('haRankChart'),{
@@ -731,7 +740,7 @@ function renderHARanking() {
 
   if(charts.haAvg) charts.haAvg.destroy();
   charts.haAvg = new Chart(document.getElementById('haAvgChart'),{
-    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均純申込',data:sortedAvg.map(([,v])=>v.avgNet),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
+    type:'bar',data:{labels:sortedAvg.map(([n])=>n),datasets:[{label:'月平均純申込',data:sortedAvg.map(([,v])=>v.avg),backgroundColor:'rgba(79,110,247,.6)',borderColor:'#4f6ef7',borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,layout:{padding:{right:55}},
       plugins:{legend:{display:false},datalabels:{display:true,anchor:'end',align:'right',clamp:true,font:{size:10,weight:'bold'},color:'#1a1f36',formatter:v=>fmt(v)},tooltip:{callbacks:{label:c=>` ${fmt(c.raw)}円/月`}}},
       scales:{x:{ticks:{callback:v=>v>=100000000?(v/100000000).toFixed(1)+'億':v>=10000?Math.round(v/10000)+'万':v}},y:{grid:{display:false}}}}
@@ -787,7 +796,11 @@ function showBanner(live) {
 // ===============================================================
 //  RENDER
 // ===============================================================
-function render() { updateFyBar(); renderOverviewFY(); renderMemberView(); renderRanking(); }
+function render() {
+  updateFyBar(); renderOverviewFY(); renderMemberView(); renderRanking();
+  // ランキングタブで申込金額モード表示中なら年度に合わせて再描画
+  if(rankMetric==='ha' && Object.keys(FC_HA).length) renderHARanking();
+}
 
 // ---- OVERVIEW FY ----
 function renderOverviewFY() {
@@ -1092,7 +1105,7 @@ function renderMemberCards() {
     }
 
     document.getElementById('memberRankTitle').textContent=`純申込金額 月別ランキング`;
-    document.getElementById('memberAvgTitle').textContent='純申込金額 月平均ランキング';
+    document.getElementById('memberAvgTitle').textContent='純申込金額 月平均ランキング（在籍期間全体）';
     document.getElementById('memberMonthSub').textContent=curMonth;
 
     const entries=Object.entries(FC_HA).filter(([n])=>isFC(n));
