@@ -450,6 +450,8 @@ let FC_HA = {}; // name -> {ha, avgHa, ma, avgNet, months, cancelRate, monthlyNe
 let FC_HA_TOTAL = {ha:0, net:0}; // 全員合計（除外メンバー含む）
 let FC_MONTHS = []; // ['2025/7', ..., '2026/6']
 let FC_TOTAL_MONTHLY = []; // 全員合計の月次純申込（万円）除外メンバー込み
+let FC_HA_MONTHS = []; // 本契約の月ラベル
+let FC_HA_TOTAL_MONTHLY = []; // 本契約 全体の月次合計（円）
 
 // ===============================================================
 //  実データ（GAS未設定時のフォールバック）
@@ -538,10 +540,13 @@ async function loadFCData() {
     FC_HA_TOTAL = {ha:(j.total?.ha||0)*10000, net:(j.total?.net||0)*10000, ma:(j.total?.ma||0)*10000, cancel:(j.total?.cancel||0)*10000};
     FC_MONTHS = j.months || [];
     FC_TOTAL_MONTHLY = j.totalMonthly || []; // GASが既に万円単位で返す
+    FC_HA_MONTHS = j.haMonths || [];
+    FC_HA_TOTAL_MONTHLY = (j.totalHaMonthly || []).map(v=>v*10000); // 円に変換
     (j.members||[]).forEach(m=>{
       const name = NAME_MAP[m.name] || m.name;
       const monthlyNet = (m.monthlyNet||[]).map(v=>v!=null?v*10000:null);
-      FC_HA[name] = {...m, name, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000, monthlyNet};
+      const monthlyHa = m.monthlyHa ? m.monthlyHa.map(v=>v!=null?v*10000:0) : null;
+      FC_HA[name] = {...m, name, ha:m.ha*10000, ma:m.ma*10000, cancel:m.cancel*10000, net:m.net*10000, avgHa:m.avgHa*10000, avgNet:m.avgNet*10000, monthlyNet, monthlyHa};
     });
     renderHASection();
   } catch(e) { console.warn('FC API取得失敗:', e); }
@@ -1790,9 +1795,22 @@ function renderSalesRanking(){
   const fyEntries=allEntries.map(([name,hd])=>[name,hd,fyStats(hd)]);
   const fyTotalNet=fyEntries.reduce((s,[,,st])=>s+st.net,0);
 
-  // 合計カード: 純申込は表示年度の合計（参考で全期間も併記）。本契約はデータが全期間累計のみ
-  document.getElementById('sr-total-ha').textContent=fmtMan(FC_HA_TOTAL.ha)+'万円';
-  document.getElementById('sr-total-ha-sub').textContent='全員累計（全期間）※年度別内訳なし';
+  // 本契約も表示年度でフィルター（月別データがある場合）
+  const haFyIdxs = FC_HA_MONTHS.map((m,i)=>getFY(m)===fy?i:-1).filter(i=>i>=0);
+  const haFyAvailable = haFyIdxs.length>0;
+  const fyHaOf = hd => (haFyAvailable && hd.monthlyHa) ? haFyIdxs.reduce((s,i)=>s+(hd.monthlyHa[i]||0),0) : 0;
+  const fyTotalHa = haFyAvailable ? haFyIdxs.reduce((s,i)=>s+(FC_HA_TOTAL_MONTHLY[i]||0),0) : null;
+
+  // 合計カード: 本契約・純申込とも表示年度の合計（参考で全期間も併記）
+  if(fyTotalHa!=null){
+    document.getElementById('sr-total-ha').textContent=fmtMan(fyTotalHa)+'万円';
+    document.getElementById('sr-total-ha-sub').innerHTML=
+      `${fy}年度（${fy}/7〜${fy+1}/6）の合計<br>参考: 全期間累計 ${fmtMan(FC_HA_TOTAL.ha)}万円`;
+  } else {
+    document.getElementById('sr-total-ha').textContent='0万円';
+    document.getElementById('sr-total-ha-sub').innerHTML=
+      `${fy}年度の本契約はシート未登録<br>参考: 全期間累計 ${fmtMan(FC_HA_TOTAL.ha)}万円`;
+  }
   document.getElementById('sr-total-net').textContent=fmtMan(fyTotalNet)+'万円';
   document.getElementById('sr-total-sub').innerHTML=
     `${fy}年度（${fy}/7〜${fy+1}/6）の合計<br>参考: 全期間累計 ${fmtMan(FC_HA_TOTAL.net)}万円`;
@@ -1815,8 +1833,8 @@ function renderSalesRanking(){
       </div>`;
     });
   }
-  // 本契約=全期間 / 純申込=表示年度でソート
-  const byHa=[...allEntries].sort((a,b)=>b[1].ha-a[1].ha);
+  // 本契約・純申込とも表示年度でソート（未登録年度の本契約は0=「—」表示）
+  const byHa=[...allEntries].map(([n,d])=>[n,{...d,ha:haFyAvailable?fyHaOf(d):0}]).sort((a,b)=>b[1].ha-a[1].ha);
   const byNet=[...fyEntries].sort((a,b)=>b[2].net-a[2].net).map(([n,d,st])=>[n,{...d,net:st.net}]);
   buildChart('sr-chart-ha',byHa,'ha','sr-bar-blue');
   buildChart('sr-chart-net',byNet,'net','sr-bar-green');
@@ -1836,7 +1854,7 @@ function renderSalesRanking(){
   tableEntries.forEach(([name,d,st],i)=>{
     const netMan=Math.round(st.net/10000);
     const avgMan=Math.round(st.avg/10000);
-    const haMan=Math.round(d.ha/10000);
+    const haMan=haFyAvailable?Math.round(fyHaOf(d)/10000):0;
     tb.innerHTML+=`<tr>
       <td><strong>${medals[i]??`${i+1}位`} ${name}</strong></td>
       <td style="text-align:center">${st.cnt?st.cnt+'ヶ月':'—'}</td>
@@ -1847,8 +1865,8 @@ function renderSalesRanking(){
     </tr>`;
   });
 
-  // フッター合計（純申込=表示年度 / 本契約=全期間）
-  const sumHa=allEntries.reduce((s,[,d])=>s+d.ha,0);
+  // フッター合計（純申込・本契約とも表示年度）
+  const sumHa=haFyAvailable?allEntries.reduce((s,[,d])=>s+fyHaOf(d),0):0;
   const sumNet=fyTotalNet;
   const totalMa=FC_HA_TOTAL.ma||allEntries.reduce((s,[,m])=>s+m.ma,0);
   const totalCancel=FC_HA_TOTAL.cancel||allEntries.reduce((s,[,m])=>s+m.cancel,0);
